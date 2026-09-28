@@ -24,10 +24,18 @@ async function open(): Promise<Db> {
   if (url) {
     const pool = new pg.Pool({
       connectionString: url,
-      max: 5,
+      max: Number(process.env.DATABASE_POOL_MAX) || 5,
       // Hosted Postgres (Neon, Render, Supabase) requires TLS.
       ssl: /localhost|127\.0\.0\.1/.test(url) ? undefined : { rejectUnauthorized: true },
+      // Neon closes idle connections and suspends the database when quiet.
+      // Let idle connections go first, and don't wait forever to reconnect.
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 15_000,
+      keepAlive: true,
     });
+    // A connection the server drops while idle surfaces here; without a
+    // listener it would crash the whole process. The pool replaces it.
+    pool.on("error", (err) => console.error("Postgres idle connection error:", err.message));
     return drizzlePg(pool, { schema });
   }
   if (process.env.NODE_ENV === "production") {
