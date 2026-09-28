@@ -3,7 +3,7 @@ import type { Route } from "./+types/login";
 import { authFeatures, getAuth, getSessionUser } from "@/lib/server/auth.server";
 import { safeNext } from "@/lib/server/safe-redirect";
 
-export const meta: Route.MetaFunction = () => [{ title: "Sign in — Card Tracker" }];
+export const meta: Route.MetaFunction = () => [{ title: "Sign in — Holovault" }];
 
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
@@ -225,7 +225,7 @@ export default function Login({ loaderData }: Route.ComponentProps) {
         )}
         <p className="pt-2 text-[11px] text-ink-600">
           <Link to="/" className="hover:text-ink-400">
-            What is Card Tracker?
+            What is Holovault?
           </Link>
         </p>
       </div>

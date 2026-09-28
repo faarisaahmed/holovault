@@ -4,7 +4,7 @@ import { CONDITIONS } from "@/lib/valuation";
 import { authFeatures, getAuth, requireUser } from "@/lib/server/auth.server";
 import { getSettings, saveSettings, settingsInput } from "@/lib/server/collection.server";
 
-export const meta: Route.MetaFunction = () => [{ title: "Settings — Card Tracker" }];
+export const meta: Route.MetaFunction = () => [{ title: "Settings — Holovault" }];
 
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await requireUser(request);

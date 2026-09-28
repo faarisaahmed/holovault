@@ -15,7 +15,7 @@ import { goal } from "@/lib/server/schema";
 import { and, eq } from "drizzle-orm";
 
 export const meta: Route.MetaFunction = ({ loaderData }) => [
-  { title: `${loaderData?.set.name ?? "Set"} — Card Tracker` },
+  { title: `${loaderData?.set.name ?? "Set"} — Holovault` },
 ];
 
 export async function loader({ request, params }: Route.LoaderArgs) {

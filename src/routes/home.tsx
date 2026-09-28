@@ -185,7 +185,8 @@ function Landing() {
   ];
   return (
     <div className="mx-auto max-w-4xl py-10">
-      <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">The Pokémon card tracker that knows what your cards are.</h1>
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent">Holovault</p>
+      <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Know what your collection is worth.</h1>
       <p className="mt-3 max-w-2xl text-ink-400">
         Add cards in a couple of clicks, keep printings and conditions straight, and let it tell you what's worth
         grading, how close you are to that master set, and how to lay out your binder.

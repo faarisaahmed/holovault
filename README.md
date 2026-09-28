@@ -1,4 +1,6 @@
-# Card Tracker
+# Holovault
+
+*Know what your collection is worth.*
 
 A Pokémon TCG collection tracker: add cards by printing, condition and grade, see what they're worth, find
 the ones worth grading, track sets and Pokémon to completion, and plan binder layouts. Sibling to
@@ -74,6 +76,9 @@ npm run dev
 ```
 
 Open http://localhost:5173 and create an account.
+
+The Render service in `render.yaml` is still named `card-tracker`, so the site lives at
+`card-tracker.onrender.com`; rename the service there if you ever want the address to match.
 
 | Script | Does |
 |---|---|

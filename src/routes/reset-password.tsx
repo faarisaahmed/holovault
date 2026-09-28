@@ -2,7 +2,7 @@ import { Form, Link, redirect, useActionData } from "react-router";
 import type { Route } from "./+types/reset-password";
 import { getAuth } from "@/lib/server/auth.server";
 
-export const meta: Route.MetaFunction = () => [{ title: "Choose a new password — Card Tracker" }];
+export const meta: Route.MetaFunction = () => [{ title: "Choose a new password — Holovault" }];
 
 export function loader({ request }: Route.LoaderArgs) {
   const token = new URL(request.url).searchParams.get("token");

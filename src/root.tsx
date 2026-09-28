@@ -61,7 +61,7 @@ export const links: Route.LinksFunction = () => [
 ];
 
 export const meta: Route.MetaFunction = () => [
-  { title: "Card Tracker — your Pokémon TCG collection" },
+  { title: "Holovault — your Pokémon TCG collection" },
   {
     name: "description",
     content:
@@ -106,7 +106,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
         <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-3 sm:gap-6">
           <Link to="/" className="flex shrink-0 items-center gap-2 font-semibold tracking-tight">
             <img src="/favicon.svg" alt="" className="h-6 w-6" />
-            <span className="hidden sm:inline">Card Tracker</span>
+            <span className="hidden sm:inline">Holovault</span>
           </Link>
           {user ? (
             <nav className="-my-1 flex min-w-0 flex-1 items-center gap-4 overflow-x-auto whitespace-nowrap py-1 text-sm text-ink-300">
