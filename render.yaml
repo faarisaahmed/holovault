@@ -6,7 +6,9 @@ services:
     name: card-tracker
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run ingest && npm run build
+    # --include=dev: NODE_ENV=production (needed at runtime for secure
+    # cookies) would otherwise make npm skip the build tools.
+    buildCommand: npm ci --include=dev && npm run ingest && npm run build
     startCommand: npm run db:migrate && npm start
     healthCheckPath: /login
     envVars:
