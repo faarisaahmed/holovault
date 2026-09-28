@@ -11,7 +11,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const user = await requireUser(request);
   return {
     binders: await listBinders(user.id),
-    sets: listSets().map((s) => ({ id: s.id, name: s.name, region: s.region })),
+    sets: listSets().map((s) => ({ id: s.id, name: s.name, region: s.region, year: s.releaseDate?.slice(0, 4) ?? null })),
     species: listSpecies(),
   };
 }

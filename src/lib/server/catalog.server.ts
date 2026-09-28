@@ -27,11 +27,13 @@ export interface CatalogCard {
   officialCount: number;
   dexIds: number[];
   seriesName: string | null;
+  /** Shared by straight reprints of the same card across sets. */
+  printKey: string | null;
 }
 
 const CARD_COLUMNS = `c.id, c.set_id, s.name set_name, s.abbreviation set_abbr, c.region, c.local_id,
   c.number_sort, c.name, c.rarity, c.rarity_key, c.rarity_rank, c.image, c.market_price,
-  s.release_date, s.card_count_official, c.dex_ids, s.series_name`;
+  s.release_date, s.card_count_official, c.dex_ids, s.series_name, c.print_key`;
 
 function toCard(r: Record<string, unknown>): CatalogCard {
   return {
@@ -52,6 +54,7 @@ function toCard(r: Record<string, unknown>): CatalogCard {
     officialCount: (r.card_count_official as number) ?? 0,
     dexIds: r.dex_ids ? (r.dex_ids as string).split(",").filter(Boolean).map(Number) : [],
     seriesName: (r.series_name as string) ?? null,
+    printKey: (r.print_key as string) ?? null,
   };
 }
 

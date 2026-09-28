@@ -35,7 +35,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     total: slots.length,
     owned,
     missingCost,
-    sets: listSets().map((s) => ({ id: s.id, name: s.name, region: s.region })),
+    sets: listSets().map((s) => ({ id: s.id, name: s.name, region: s.region, year: s.releaseDate?.slice(0, 4) ?? null })),
     species: listSpecies(),
   };
 }

@@ -17,12 +17,14 @@ import { ThemeSwitcher } from "@/components/theme-switcher";
 import { THEME_INIT_SCRIPT } from "@/lib/themes";
 import { getSessionUser } from "@/lib/server/auth.server";
 import { lastIngest } from "@/lib/server/catalog.server";
+import { ripwiseUrl } from "@/lib/server/graded.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await getSessionUser(request);
   return {
     user: user ? { name: user.name, email: user.email } : null,
     ingested: lastIngest(),
+    ripwise: ripwiseUrl() ?? null,
   };
 }
 
@@ -100,7 +102,7 @@ const NAV = [
 ];
 
 export default function App({ loaderData }: Route.ComponentProps) {
-  const { user } = loaderData;
+  const { user, ripwise } = loaderData;
   // Pages like sign-in fill the whole screen with their own layout.
   const bare = useMatches().some((m) => (m.handle as { bare?: boolean } | undefined)?.bare);
   if (bare) return <Outlet />;
@@ -154,6 +156,15 @@ export default function App({ loaderData }: Route.ComponentProps) {
         Your collection is private to your account and never shared or sold. No ads, no analytics.
         Card data from TCGdex, market prices from TCGplayer via TCGCSV. Condition discounts are
         estimates.
+        {ripwise ? (
+          <>
+            {" "}Pull rates and pack odds for every set live on the sister site,{" "}
+            <a href={ripwise} className="underline hover:text-ink-200">
+              Ripwise
+            </a>
+            .
+          </>
+        ) : null}
         <br />
         Not produced by, endorsed by, or affiliated with Nintendo, Creatures Inc., GAME FREAK inc.,
         The Pokémon Company or TCGplayer. Pokémon and all related names are trademarks of their
@@ -166,6 +177,11 @@ export default function App({ loaderData }: Route.ComponentProps) {
 /** The signed-in user from the root loader, for components deep in the tree. */
 export function useUser() {
   return useRouteLoaderData<typeof loader>("root")?.user ?? null;
+}
+
+/** The sister site's address, when this deployment knows it. */
+export function useRipwiseUrl() {
+  return useRouteLoaderData<typeof loader>("root")?.ripwise ?? null;
 }
 
 export function SignOutButton() {

@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
-import { LAYOUTS, binderConfig, type BinderCandidate, type BinderConfig } from "@/lib/binder";
+import { LAYOUTS, binderConfig, normalizeConfig, type BinderCandidate, type BinderConfig } from "@/lib/binder";
 import { allPokemonCards, cardsInSet, cardsOfSpecies, listSpecies, type CatalogCard } from "./catalog.server";
 import { ownedCounts, valuedCollection } from "./collection.server";
 import { getUserDb } from "./db.server";
@@ -12,17 +12,20 @@ export const binderInput = z.object({
   source: binderConfig.shape.source,
   region: binderConfig.shape.region,
   setId: z.string().max(40).optional(),
-  dexId: z.coerce.number().int().min(1).max(2000).optional(),
+  dexId: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().int().min(1).max(2000).optional()),
   excludeRares: z.literal("on").optional(),
   onePerPokemon: z.literal("on").optional(),
   pokemonOnly: z.literal("on").optional(),
+  noReprints: z.literal("on").optional(),
   breakPages: z.literal("on").optional(),
-  sort: binderConfig.shape.sort,
-});
+  sort: binderConfig.shape.sort.optional(),
+})
+  .refine((v) => v.source !== "set" || !!v.setId, { message: "Pick a set from the list." })
+  .refine((v) => v.source !== "pokemon" || !!v.dexId, { message: "Pick a Pokémon from the list." });
 
 export function toRecord(input: z.infer<typeof binderInput>) {
   const [rows, cols] = input.layout.split("x").map(Number);
-  const config: BinderConfig = binderConfig.parse({
+  const config: BinderConfig = normalizeConfig(binderConfig.parse({
     source: input.source,
     region: input.region,
     setId: input.source === "set" ? input.setId : undefined,
@@ -30,23 +33,24 @@ export function toRecord(input: z.infer<typeof binderInput>) {
     excludeRares: !!input.excludeRares,
     onePerPokemon: !!input.onePerPokemon,
     pokemonOnly: !!input.pokemonOnly,
+    noReprints: !!input.noReprints,
     breakPages: !!input.breakPages,
     sort: input.sort,
-  });
+  }));
   return { name: input.name, rows, cols, config };
 }
 
 export async function listBinders(userId: string) {
   const db = await getUserDb();
   const rows = await db.select().from(binder).where(eq(binder.userId, userId)).orderBy(desc(binder.updatedAt));
-  return rows.map((r) => ({ ...r, config: binderConfig.parse(r.config ?? {}) }));
+  return rows.map((r) => ({ ...r, config: normalizeConfig(binderConfig.parse(r.config ?? {})) }));
 }
 
 export async function getBinder(userId: string, id: string) {
   if (!z.uuid().safeParse(id).success) return null;
   const db = await getUserDb();
   const [row] = await db.select().from(binder).where(and(eq(binder.id, id), eq(binder.userId, userId)));
-  return row ? { ...row, config: binderConfig.parse(row.config ?? {}) } : null;
+  return row ? { ...row, config: normalizeConfig(binderConfig.parse(row.config ?? {})) } : null;
 }
 
 export async function createBinder(userId: string, rec: ReturnType<typeof toRecord>) {
@@ -82,6 +86,7 @@ function candidate(c: CatalogCard, owned: boolean, price = c.marketPrice): Binde
     rarityRank: c.rarityRank,
     price,
     owned,
+    printKey: c.printKey,
   };
 }
 

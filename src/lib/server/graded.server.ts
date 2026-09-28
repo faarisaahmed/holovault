@@ -12,7 +12,7 @@ import { gradedFetch, gradedPrice } from "./schema";
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Ripwise's address; PULL_TRACKER_URL is its name from before the rename. */
-function ripwiseUrl(): string | undefined {
+export function ripwiseUrl(): string | undefined {
   return (process.env.RIPWISE_URL || process.env.PULL_TRACKER_URL)?.replace(/\/$/, "");
 }
 

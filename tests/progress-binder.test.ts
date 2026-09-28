@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { progress, type ProgressCard } from "../src/lib/progress";
-import { binderConfig, paginate, planSlots, type BinderCandidate } from "../src/lib/binder";
+import { binderConfig, normalizeConfig, paginate, planSlots, type BinderCandidate } from "../src/lib/binder";
 
 const cards: ProgressCard[] = [
   { id: "a", finishes: ["Normal", "Reverse Holofoil"], prices: { Normal: 0.1, "Reverse Holofoil": 0.5 } },
@@ -47,4 +47,29 @@ test("pages fill to the layout and can break by generation", () => {
   assert.deepEqual(paginate(slots, 9, { breakPages: false, sort: "dex", source: "pokedex" }).map((p) => p.length), [9, 9, 2]);
   // 145-151 is Gen 1, 152+ Gen 2
   assert.deepEqual(paginate(slots, 9, { breakPages: true, sort: "dex", source: "pokedex" }).map((p) => p.length), [7, 9, 4]);
+});
+
+test("options that don't fit the binder type are dropped", () => {
+  const cfg = binderConfig.parse({ source: "pokemon", dexId: 6, onePerPokemon: true, pokemonOnly: true, breakPages: true, noReprints: true, sort: "name" });
+  const n = normalizeConfig(cfg);
+  assert.equal(n.onePerPokemon, false);
+  assert.equal(n.pokemonOnly, false);
+  assert.equal(n.breakPages, false);
+  assert.equal(n.noReprints, true);
+  assert.equal(n.sort, "release"); // name isn't offered for one Pokémon
+  const dex = normalizeConfig(binderConfig.parse({ source: "pokedex", sort: "value" }));
+  assert.equal(dex.onePerPokemon, true);
+  assert.equal(dex.sort, "dex");
+});
+
+test("skip reprints keeps the owned print, else the oldest", () => {
+  const base = (id: string, date: string, owned: boolean, printKey: string | null): BinderCandidate => ({
+    ...card(id, 6, 10, 1, owned), releaseDate: date, printKey,
+  });
+  const cfg = binderConfig.parse({ source: "pokemon", dexId: 6, noReprints: true, sort: "release" });
+  const slots = planSlots(
+    [base("dri", "2025-05-30", false, "k"), base("asc", "2026-01-30", true, "k"), base("old", "1999-01-09", false, "j"), base("new", "2020-01-01", false, "j"), base("solo", "2010-01-01", false, null)],
+    cfg,
+  );
+  assert.deepEqual(slots.map((s) => s.card!.id).sort(), ["asc", "old", "solo"]);
 });

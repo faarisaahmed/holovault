@@ -13,6 +13,7 @@ import { getUserDb } from "@/lib/server/db.server";
 import { progressCards, setGoal } from "@/lib/server/progress.server";
 import { goal } from "@/lib/server/schema";
 import { and, eq } from "drizzle-orm";
+import { useRipwiseUrl } from "@/root";
 
 export const meta: Route.MetaFunction = ({ loaderData }) => [
   { title: `${loaderData?.set.name ?? "Set"} — Holovault` },
@@ -76,6 +77,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 export default function SetDetail({ loaderData }: Route.ComponentProps) {
   const { set, master, show, tracked, cards, base, full, defaultCondition } = loaderData;
   const cur = master ? full : base;
+  const ripwise = useRipwiseUrl();
   return (
     <>
       <Breadcrumbs items={[{ href: "/sets", label: "Sets" }, { label: set.name }]} />
@@ -85,6 +87,14 @@ export default function SetDetail({ loaderData }: Route.ComponentProps) {
           <h1 className="text-2xl font-semibold tracking-tight">{set.name}</h1>
           <p className="text-xs text-ink-400">
             {set.releaseDate} · {set.cardCount} cards
+            {ripwise ? (
+              <>
+                {" · "}
+                <a href={`${ripwise}/sets/${encodeURIComponent(set.id)}`} target="_blank" rel="noopener" className="underline hover:text-accent">
+                  Pull rates & pack odds ↗
+                </a>
+              </>
+            ) : null}
           </p>
         </div>
         <Form method="post">

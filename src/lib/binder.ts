@@ -18,6 +18,8 @@ export const binderConfig = z.object({
   onePerPokemon: z.boolean().default(false),
   /** Leave out Trainer and Energy cards. */
   pokemonOnly: z.boolean().default(false),
+  /** Keep one of each straight reprint (the owned one, else the oldest). */
+  noReprints: z.boolean().default(false),
   sort: z.enum(["dex", "set", "release", "name", "value", "rarity"]).default("dex"),
   /** Start a new page at each set (or Pokémon generation for "dex"). */
   breakPages: z.boolean().default(false),
@@ -45,6 +47,37 @@ export interface BinderCandidate {
   rarityRank: number;
   price: number | null;
   owned: boolean;
+  printKey?: string | null;
+}
+
+export type BinderSource = BinderConfig["source"];
+type Flag = "excludeRares" | "onePerPokemon" | "pokemonOnly" | "noReprints" | "breakPages";
+
+/**
+ * Which options make sense for each kind of binder. A Pokédex binder is one
+ * Pokémon per pocket by definition; a one-Pokémon binder has no Trainers and
+ * nothing to split by Pokémon; a single set has nothing to break pages on.
+ */
+export const BINDER_OPTIONS: Record<BinderSource, { flags: Flag[]; sorts: BinderConfig["sort"][] | null }> = {
+  collection: { flags: ["excludeRares", "onePerPokemon", "pokemonOnly", "breakPages"], sorts: ["dex", "set", "name", "value", "rarity"] },
+  pokedex: { flags: ["excludeRares", "breakPages"], sorts: null },
+  set: { flags: ["excludeRares", "pokemonOnly"], sorts: ["set", "dex", "name", "value", "rarity"] },
+  pokemon: { flags: ["excludeRares", "noReprints"], sorts: ["release", "value", "rarity"] },
+};
+
+/** Drops options that don't apply to the binder's source. */
+export function normalizeConfig(cfg: BinderConfig): BinderConfig {
+  const allowed = BINDER_OPTIONS[cfg.source];
+  const on = (f: Flag) => (allowed.flags.includes(f) ? cfg[f] : false);
+  return {
+    ...cfg,
+    excludeRares: on("excludeRares"),
+    onePerPokemon: cfg.source === "pokedex" ? true : on("onePerPokemon"),
+    pokemonOnly: cfg.source === "pokedex" ? true : on("pokemonOnly"),
+    noReprints: on("noReprints"),
+    breakPages: on("breakPages"),
+    sort: allowed.sorts ? (allowed.sorts.includes(cfg.sort) ? cfg.sort : allowed.sorts[0]) : "dex",
+  };
 }
 
 export interface Slot {
@@ -76,6 +109,18 @@ export function planSlots(
 ): Slot[] {
   let cards = candidates;
   if (cfg.excludeRares) cards = cards.filter((c) => c.rarityRank < 50);
+  if (cfg.noReprints) {
+    // Keep the owned print, else the oldest, of each straight reprint.
+    const best = new Map<string, BinderCandidate>();
+    for (const c of cards) {
+      if (!c.printKey) continue;
+      const cur = best.get(c.printKey);
+      const better =
+        !cur || (c.owned && !cur.owned) || (c.owned === cur.owned && (c.releaseDate ?? "") < (cur.releaseDate ?? ""));
+      if (better) best.set(c.printKey, c);
+    }
+    cards = cards.filter((c) => !c.printKey || best.get(c.printKey) === c);
+  }
   if (cfg.pokemonOnly || cfg.source === "pokedex") cards = cards.filter((c) => c.dexIds.length > 0);
 
   if (cfg.onePerPokemon || cfg.source === "pokedex") {
