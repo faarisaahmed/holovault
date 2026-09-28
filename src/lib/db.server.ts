@@ -1,0 +1,177 @@
+import Database from "better-sqlite3";
+import path from "node:path";
+import fs from "node:fs";
+
+const DB_PATH = process.env.PPT_DB_PATH ?? path.join(process.cwd(), "data", "pokemon.db");
+
+export const SCHEMA = `
+PRAGMA journal_mode = WAL;
+
+CREATE TABLE IF NOT EXISTS sets (
+  id                 TEXT PRIMARY KEY,
+  region             TEXT NOT NULL,
+  name               TEXT NOT NULL,
+  local_name         TEXT,
+  series_id          TEXT,
+  series_name        TEXT,
+  release_date       TEXT,
+  card_count_official INTEGER NOT NULL DEFAULT 0,
+  card_count_total   INTEGER NOT NULL DEFAULT 0,
+  logo               TEXT,
+  symbol             TEXT,
+  abbreviation       TEXT,
+  -- Japanese sets have no logo art anywhere, so tiles fall back to the image
+  -- of the set's most valuable card.
+  tile_image         TEXT,
+  tcgcsv_group_ids   TEXT NOT NULL DEFAULT '',
+  pack_price         REAL,
+  bundle_price       REAL,
+  box_price          REAL,
+  etb_price          REAL,
+  set_value          REAL,
+  expected_pack_value REAL,
+  -- EV from hit rarities only, leaving out bulk commons/uncommons/rares.
+  hit_pack_value     REAL,
+  -- Cheapest price per pack across loose packs, bundles, ETBs and boxes.
+  best_pack_price    REAL
+);
+CREATE INDEX IF NOT EXISTS idx_sets_region ON sets(region);
+CREATE INDEX IF NOT EXISTS idx_sets_release ON sets(release_date);
+
+CREATE TABLE IF NOT EXISTS cards (
+  id            TEXT PRIMARY KEY,
+  set_id        TEXT NOT NULL REFERENCES sets(id),
+  region        TEXT NOT NULL,
+  local_id      TEXT NOT NULL,
+  number_sort   INTEGER NOT NULL DEFAULT 0,
+  name          TEXT NOT NULL,
+  rarity        TEXT,
+  rarity_key    TEXT,
+  rarity_rank   INTEGER NOT NULL DEFAULT 0,
+  category      TEXT,
+  illustrator   TEXT,
+  image         TEXT,
+  types         TEXT,
+  hp            INTEGER,
+  market_price  REAL,
+  -- National Pokedex numbers as ",6,654," so a species lookup is one instr().
+  dex_ids       TEXT,
+  -- Shared by straight reprints across sets (same name, HP, art, rarity,
+  -- attacks and abilities); null when the card has no reprint.
+  print_key     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_cards_set ON cards(set_id);
+CREATE INDEX IF NOT EXISTS idx_cards_region ON cards(region);
+CREATE INDEX IF NOT EXISTS idx_cards_price ON cards(market_price);
+CREATE INDEX IF NOT EXISTS idx_cards_rarity ON cards(rarity_key);
+CREATE INDEX IF NOT EXISTS idx_cards_name ON cards(name);
+
+CREATE TABLE IF NOT EXISTS card_prices (
+  card_id      TEXT NOT NULL REFERENCES cards(id),
+  variant      TEXT NOT NULL,
+  tcgplayer_product_id INTEGER,
+  low REAL, mid REAL, high REAL, market REAL, direct_low REAL,
+  updated_at TEXT,
+  PRIMARY KEY (card_id, variant)
+);
+
+CREATE TABLE IF NOT EXISTS sealed (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  set_id       TEXT NOT NULL REFERENCES sets(id),
+  region       TEXT NOT NULL,
+  kind         TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  tcgplayer_product_id INTEGER NOT NULL UNIQUE,
+  url          TEXT,
+  image        TEXT,
+  market REAL, low REAL, mid REAL, high REAL,
+  pack_count   INTEGER,
+  updated_at   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_sealed_set ON sealed(set_id);
+CREATE INDEX IF NOT EXISTS idx_sealed_kind ON sealed(kind);
+
+CREATE TABLE IF NOT EXISTS psa_prices (
+  card_id     TEXT NOT NULL,
+  grade       TEXT NOT NULL,
+  sales_count INTEGER NOT NULL,
+  avg_price   REAL NOT NULL,
+  low_price   REAL NOT NULL,
+  high_price  REAL NOT NULL,
+  last_sale_date TEXT,
+  fetched_at  TEXT NOT NULL,
+  PRIMARY KEY (card_id, grade)
+);
+
+CREATE TABLE IF NOT EXISTS psa_fetch_log (
+  card_id    TEXT PRIMARY KEY,
+  fetched_at TEXT NOT NULL,
+  status     TEXT NOT NULL,
+  note       TEXT
+);
+
+-- Pokedex number -> English species name, for the master-set search box.
+CREATE TABLE IF NOT EXISTS species (
+  dex_id INTEGER PRIMARY KEY,
+  name   TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+`;
+
+let _db: Database.Database | null = null;
+let _readonly = false;
+
+/**
+ * Opens the database, degrading to read-only when the filesystem is.
+ *
+ * Serverless hosts mount the deployment read-only, so the write-mode open and
+ * the schema/WAL setup both fail there. Every page in the app is a read, so
+ * that is survivable — only the PSA cache needs writes, and it checks
+ * `canWrite()` before trying.
+ */
+export function getDb(): Database.Database {
+  if (_db) return _db;
+
+  try {
+    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+    const db = new Database(DB_PATH);
+    db.pragma("journal_mode = WAL");
+    db.exec(SCHEMA);
+    migrate(db);
+    _db = db;
+    _readonly = false;
+  } catch {
+    const db = new Database(DB_PATH, { readonly: true, fileMustExist: true });
+    _db = db;
+    _readonly = true;
+  }
+  return _db;
+}
+
+/** Columns added after a table first shipped; CREATE TABLE IF NOT EXISTS skips them. */
+function migrate(db: Database.Database) {
+  const cols = new Set(
+    (db.prepare("PRAGMA table_info(sets)").all() as { name: string }[]).map((c) => c.name),
+  );
+  if (!cols.has("hit_pack_value")) db.exec("ALTER TABLE sets ADD COLUMN hit_pack_value REAL");
+  if (!cols.has("best_pack_price")) db.exec("ALTER TABLE sets ADD COLUMN best_pack_price REAL");
+  const cardCols = new Set(
+    (db.prepare("PRAGMA table_info(cards)").all() as { name: string }[]).map((c) => c.name),
+  );
+  if (!cardCols.has("dex_ids")) db.exec("ALTER TABLE cards ADD COLUMN dex_ids TEXT");
+  if (!cardCols.has("print_key")) db.exec("ALTER TABLE cards ADD COLUMN print_key TEXT");
+}
+
+/** False on a read-only deployment; the PSA cache is skipped when it is. */
+export function canWrite(): boolean {
+  getDb();
+  return !_readonly;
+}
+
+export function dbPath() {
+  return DB_PATH;
+}

@@ -1,0 +1,32 @@
+# Render blueprint. The card catalog (SQLite) is rebuilt on every deploy, like
+# the pull tracker; accounts and collections live in Postgres (DATABASE_URL),
+# which survives deploys. Migrations run before the server starts.
+services:
+  - type: web
+    name: card-tracker
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run ingest && npm run build
+    startCommand: npm run db:migrate && npm start
+    healthCheckPath: /login
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: BETTER_AUTH_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: BETTER_AUTH_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: PULL_TRACKER_URL
+        sync: false
