@@ -1,5 +1,5 @@
 # Render blueprint. The card catalog (SQLite) is rebuilt on every deploy, like
-# the pull tracker; accounts and collections live in Postgres (DATABASE_URL),
+# Ripwise; accounts and collections live in Postgres (DATABASE_URL),
 # which survives deploys. Migrations run before the server starts.
 services:
   - type: web
@@ -28,5 +28,5 @@ services:
         sync: false
       - key: EMAIL_FROM
         sync: false
-      - key: PULL_TRACKER_URL
+      - key: RIPWISE_URL
         sync: false

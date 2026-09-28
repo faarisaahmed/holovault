@@ -4,7 +4,7 @@ import type { Region } from "@/lib/types";
 
 /**
  * Read-only queries over the card catalog (SQLite, rebuilt each deploy by
- * `npm run ingest`, same pipeline as the pull tracker). Standalone subset
+ * `npm run ingest`, same pipeline as Ripwise). Standalone subset
  * copies ("<id>@<subset>") are always excluded: a Trainer Gallery card lives
  * in its parent set here.
  */

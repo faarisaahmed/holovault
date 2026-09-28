@@ -3,16 +3,21 @@ import { getUserDb } from "./db.server";
 import { gradedFetch, gradedPrice } from "./schema";
 
 /**
- * PSA sold prices. The sibling pull-tracker app already scrapes and caches
+ * PSA sold prices. The sibling Ripwise app already scrapes and caches
  * eBay comps (/api/psa/:cardId); this app asks it rather than scraping eBay a
- * second time, and keeps what it gets for a week. Without PULL_TRACKER_URL,
- * or when eBay blocks the pull tracker's host, cards simply have no comps and
+ * second time, and keeps what it gets for a week. Without RIPWISE_URL,
+ * or when eBay blocks Ripwise's host, cards simply have no comps and
  * the grading page falls back to break-even figures.
  */
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Ripwise's address; PULL_TRACKER_URL is its name from before the rename. */
+function ripwiseUrl(): string | undefined {
+  return (process.env.RIPWISE_URL || process.env.PULL_TRACKER_URL)?.replace(/\/$/, "");
+}
+
 export function gradedSourceConfigured(): boolean {
-  return !!process.env.PULL_TRACKER_URL;
+  return !!ripwiseUrl();
 }
 
 /** cardId -> grade ("10", "9") -> average sold price, from the cache only. */
@@ -34,7 +39,7 @@ export async function gradedPrices(cardIds: string[]): Promise<Map<string, Map<s
  * a page load never waits on dozens of slow scrapes.
  */
 export async function refreshGraded(cardIds: string[], max = 6): Promise<number> {
-  const base = process.env.PULL_TRACKER_URL?.replace(/\/$/, "");
+  const base = ripwiseUrl();
   if (!base || !cardIds.length) return 0;
   const db = await getUserDb();
   const seen = await db

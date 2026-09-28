@@ -4,7 +4,7 @@
 
 A Pokémon TCG collection tracker: add cards by printing, condition and grade, see what they're worth, find
 the ones worth grading, track sets and Pokémon to completion, and plan binder layouts. Sibling to
-[Pull Tracker](https://github.com/faarisaahmed/pokemon-pull-tracker), whose card catalog and price pipeline it
+[Ripwise](https://github.com/faarisaahmed/pokemon-pull-tracker), whose card catalog and price pipeline it
 shares.
 
 ## Features
@@ -20,8 +20,8 @@ shares.
   total value, gain against price paid, value by set and the most valuable cards.
 - **Worth grading?** (`/grading`) — for raw Mint / Near Mint cards: *grade* when even a PSA 9 sells for more than
   the raw card plus your grading and shipping costs; *only if it 10s* when just a PSA 10 would; otherwise the
-  break-even price a slab would need. Graded prices come from the Pull Tracker's eBay comps
-  (`PULL_TRACKER_URL`), cached for a week.
+  break-even price a slab would need. Graded prices come from Ripwise's eBay comps
+  (`RIPWISE_URL`), cached for a week.
 - **Sets** (`/sets`, `/sets/:id`) — completion for every set you own or track, as a set (one of each card) and as
   a master set (every printing), with the market cost to finish. The checklist dims what you're missing; click a
   printing to add it.
@@ -60,9 +60,9 @@ Authentication is [Better Auth](https://www.better-auth.com) (`src/lib/server/au
 
 | What | Where | Notes |
 |---|---|---|
-| Card catalog, prices | SQLite (`data/pokemon.db`) | Rebuilt each deploy by `npm run ingest` — TCGdex + TCGCSV, same pipeline as Pull Tracker. Not in git. |
+| Card catalog, prices | SQLite (`data/pokemon.db`) | Rebuilt each deploy by `npm run ingest` — TCGdex + TCGCSV, same pipeline as Ripwise. Not in git. |
 | Accounts, collections, binders | Postgres (`DATABASE_URL`) | Schema in `src/lib/server/schema.ts`, migrations in `drizzle/`. |
-| PSA sold prices | Postgres cache | From the Pull Tracker's `/api/psa/:cardId`, a week at a time. |
+| PSA sold prices | Postgres cache | From Ripwise's `/api/psa/:cardId`, a week at a time. |
 
 Locally, with no `DATABASE_URL`, an embedded Postgres ([PGlite](https://pglite.dev)) in `data/userdb` is created
 and migrated automatically.
@@ -97,7 +97,7 @@ The Render service in `render.yaml` is still named `card-tracker`, so the site l
    `<BETTER_AUTH_URL>/api/auth/callback/google`, then set `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 4. Optional: email verification and password reset — a [Resend](https://resend.com) key in `RESEND_API_KEY` and a
    verified sender in `EMAIL_FROM`.
-5. Optional: graded prices — `PULL_TRACKER_URL` pointing at the Pull Tracker deployment.
+5. Optional: graded prices — `RIPWISE_URL` pointing at the Ripwise deployment.
 6. For daily price updates, add the Render deploy hook as the `RENDER_DEPLOY_HOOK` repository secret;
    `.github/workflows/refresh-prices.yml` calls it every day.
 
