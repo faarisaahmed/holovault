@@ -125,3 +125,62 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--color-ink-600) transparent;
 }
+
+/* ------------------------------------------------------------ auth pages */
+
+/* Holo-foil panel: layered colour washes that drift like foil in the light. */
+.holo-panel {
+  background:
+    radial-gradient(60% 50% at 20% 20%, rgb(176 107 255 / 0.55), transparent 70%),
+    radial-gradient(55% 45% at 85% 30%, rgb(94 231 255 / 0.35), transparent 70%),
+    radial-gradient(60% 55% at 60% 90%, rgb(255 122 217 / 0.35), transparent 70%),
+    var(--color-ink-950);
+  background-size: 160% 160%;
+  animation: holo-drift 18s ease-in-out infinite alternate;
+}
+
+@keyframes holo-drift {
+  from { background-position: 0% 0%; }
+  to { background-position: 100% 100%; }
+}
+
+/* A sweep of light across a card, like tilting a holo. */
+.holo-sheen {
+  position: relative;
+  overflow: hidden;
+}
+.holo-sheen::after {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  background: linear-gradient(
+    115deg,
+    transparent 40%,
+    rgb(255 255 255 / 0.28) 48%,
+    rgb(94 231 255 / 0.18) 52%,
+    transparent 60%
+  );
+  transform: translateX(-60%);
+  animation: sheen 6s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes sheen {
+  0%, 55% { transform: translateX(-60%); }
+  100% { transform: translateX(60%); }
+}
+
+.float-slow {
+  animation: float 7s ease-in-out infinite;
+}
+@keyframes float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .holo-panel,
+  .holo-sheen::after,
+  .float-slow {
+    animation: none;
+  }
+}

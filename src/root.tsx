@@ -8,6 +8,7 @@ import {
   Scripts,
   ScrollRestoration,
   isRouteErrorResponse,
+  useMatches,
   useRouteLoaderData,
 } from "react-router";
 import type { Route } from "./+types/root";
@@ -100,6 +101,9 @@ const NAV = [
 
 export default function App({ loaderData }: Route.ComponentProps) {
   const { user } = loaderData;
+  // Pages like sign-in fill the whole screen with their own layout.
+  const bare = useMatches().some((m) => (m.handle as { bare?: boolean } | undefined)?.bare);
+  if (bare) return <Outlet />;
   return (
     <>
       <header className="sticky top-0 z-30 border-b border-ink-800 bg-ink-950/85 backdrop-blur">
