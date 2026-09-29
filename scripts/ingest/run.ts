@@ -5,6 +5,7 @@ import type { Region, SealedKind } from "../../src/lib/types";
 import { mapLimit, progress } from "./http";
 import * as dex from "./tcgdex";
 import * as csv from "./tcgcsv";
+import { ingestMoves } from "./moves";
 import { pairByName, productCardName } from "./names";
 import { resolveRarity } from "./rarity-rules";
 import {
@@ -743,6 +744,8 @@ async function main() {
   }
   computeAggregates();
   buildSpecies();
+  // Only the scanner uses these; never fail a deploy over them.
+  await ingestMoves().catch((err) => console.warn(`  WARNING: attack names skipped (${String(err)})`));
   console.log(`\nDone in ${Math.round((Date.now() - t0) / 1000)}s -> data/pokemon.db`);
 }
 

@@ -12,6 +12,8 @@ export interface ScanNumber {
   n: number;
   /** The "/165" total when visible. */
   total: number | null;
+  /** Rebuilt from digits run together ("2517264"): a guess, not a reading. */
+  split?: boolean;
 }
 
 export interface ScanClues {
@@ -32,7 +34,7 @@ export function parseScanText(raw: string): ScanClues {
   const text = raw.replace(/[‘’`´]/g, "'").replace(/\s+/g, " ");
   const numbers: ScanNumber[] = [];
   const seen = new Set<string>();
-  const push = (local: string, total: number | null) => {
+  const push = (local: string, total: number | null, split = false) => {
     const n = Number(local.replace(/^\D+/, ""));
     if (!Number.isFinite(n) || n <= 0 || n > 999) return;
     // A total smaller than 20 is almost always noise ("1/2 pages").
@@ -40,7 +42,7 @@ export function parseScanText(raw: string): ScanClues {
     const key = `${local}/${total ?? ""}`;
     if (seen.has(key)) return;
     seen.add(key);
-    numbers.push({ local, n, total });
+    numbers.push(split ? { local, n, total, split } : { local, n, total });
   };
 
   for (const m of text.matchAll(PAIR)) {
@@ -50,6 +52,17 @@ export function parseScanText(raw: string): ScanClues {
     const prefix = pre && pre === totPre ? pre : "";
     const local = `${prefix}${digits(num).replace(/^0+(?=\d)/, "")}`;
     push(local, Number(digits(tot)));
+  }
+
+  // The slash often reads as a 7 or 1, gluing "251/264" into "2517264".
+  // Try each split; the catalog rejects the ones that don't exist.
+  for (const m of text.matchAll(/(?<![0-9/])(\d{4,7})(?![0-9/])/g)) {
+    const run = m[1];
+    for (let i = 1; i <= 3; i++) {
+      const sep = run[i];
+      const rest = run.slice(i + 1);
+      if ((sep === "7" || sep === "1") && rest.length >= 2 && rest.length <= 3) push(String(Number(run.slice(0, i))), Number(rest), true);
+    }
   }
 
   const setCodes = [...new Set([...text.matchAll(SET_CODE)].map((m) => m[1].toLowerCase()))];

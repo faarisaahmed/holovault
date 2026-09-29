@@ -58,7 +58,9 @@ CREATE TABLE IF NOT EXISTS cards (
   dex_ids       TEXT,
   -- Shared by straight reprints across sets (same name, HP, art, rarity,
   -- attacks and abilities); null when the card has no reprint.
-  print_key     TEXT
+  print_key     TEXT,
+  -- Attack and ability names, " | "-joined: the card scanner matches them.
+  moves         TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_cards_set ON cards(set_id);
 CREATE INDEX IF NOT EXISTS idx_cards_region ON cards(region);
@@ -181,6 +183,7 @@ function migrate(db: Database.Database) {
   );
   if (!cardCols.has("dex_ids")) db.exec("ALTER TABLE cards ADD COLUMN dex_ids TEXT");
   if (!cardCols.has("print_key")) db.exec("ALTER TABLE cards ADD COLUMN print_key TEXT");
+  if (!cardCols.has("moves")) db.exec("ALTER TABLE cards ADD COLUMN moves TEXT");
 }
 
 /** False on a read-only deployment; the PSA cache is skipped when it is. */

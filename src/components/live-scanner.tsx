@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 import type { CardActionResult } from "@/lib/server/card-actions.server";
-import { framePrint, likeness, rankByLooks, readFrame } from "@/lib/ocr.client";
+import { framePrint, likeness, rankByLooks, readStrips } from "@/lib/ocr.client";
 import { parseScanText } from "@/lib/scan";
 import { usd } from "@/lib/format";
 import type { Region } from "@/lib/types";
@@ -23,12 +23,17 @@ const CARD_RATIO = 63 / 88;
 /** TCGdex's small image loads fast enough for the confirm panel. */
 const thumb = (url: string) => url.replace(/\/high\.(webp|png|jpg)$/, "/low.webp");
 
+/** Average per-pixel change (0–255) below which the camera counts as still. */
+const STEADY = 10;
+
 /** How different the view must look before the next card is read. */
 const MOVED_BELOW = 0.8;
 
 interface MatchData {
   candidates: Candidate[];
   guess: string | null;
+  confident: boolean;
+  offer: "sure" | "choose" | "wait";
 }
 
 export function LiveScanner({ region, defaultCondition, onClose }: { region: Region; defaultCondition: string; onClose: () => void }) {
@@ -39,6 +44,7 @@ export function LiveScanner({ region, defaultCondition, onClose }: { region: Reg
   const [hint, setHint] = useState<string | null>(null);
   const [options, setOptions] = useState<Candidate[]>([]);
   const [pick, setPick] = useState(0);
+  const [sure, setSure] = useState(true);
   const [added, setAdded] = useState<{ id: string; label: string }[]>([]);
   const [condition, setCondition] = useStickyCondition(defaultCondition);
   const match = useFetcher<MatchData>();
@@ -74,7 +80,9 @@ export function LiveScanner({ region, defaultCondition, onClose }: { region: Reg
     (async () => {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          // As sharp as the camera allows: the collector number is only a few
+          // millimetres tall.
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 3840 }, height: { ideal: 2160 } },
           audio: false,
         });
         if (cancelled) return;
@@ -98,7 +106,7 @@ export function LiveScanner({ region, defaultCondition, onClose }: { region: Reg
   }, [setPhase]);
 
   /** The part of the video inside the on-screen frame, as a card-sized canvas. */
-  const grab = useCallback((): HTMLCanvasElement | null => {
+  const grab = useCallback((width = 1000): HTMLCanvasElement | null => {
     const v = video.current;
     const f = frame.current;
     if (!v || !f || !v.videoWidth) return null;
@@ -113,83 +121,110 @@ export function LiveScanner({ region, defaultCondition, onClose }: { region: Reg
     const sw = fb.width / scale;
     const sh = fb.height / scale;
     const c = document.createElement("canvas");
-    c.width = Math.round(Math.min(sw, 1000));
+    c.width = Math.round(Math.min(sw, width));
     c.height = Math.round(c.width / CARD_RATIO);
     c.getContext("2d")!.drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
     return c;
   }, []);
 
-  // The loop: read the frame whenever idle; after an add, wait for movement.
+  // The loop, every 120 ms: wait for the camera to hold still, then read the
+  // name and number strips. After an add, wait for the view to change.
   const matchState = useRef(match.state);
   useEffect(() => {
     matchState.current = match.state;
   }, [match.state]);
   const submitMatch = match.submit;
+  const steady = useRef({ prev: null as Uint8ClampedArray | null, count: 0 });
+  const reads = useRef(0);
+  const wantBody = useRef(false);
   useEffect(() => {
     if (phase !== "scanning" && phase !== "moved-on") return;
     let stop = false;
     const tick = async () => {
       if (stop || busy.current || matchState.current !== "idle") return;
-      const card = grab();
-      if (!card) return;
+      const small = grab(36);
+      if (!small) return;
       if (phaseRef.current === "moved-on") {
-        const now = framePrint(card);
+        const now = framePrint(small);
         if (!lastPrint.current || likeness(now, lastPrint.current) < MOVED_BELOW) {
           skipIds.current.clear();
+          attempts.current.clear();
+          wantBody.current = false;
+          steady.current.count = 0;
           setPhase("scanning");
           setHint(null);
         }
         return;
       }
+      // Blurry frames read as nonsense; only read once the picture settles.
+      const px = small.getContext("2d")!.getImageData(0, 0, small.width, small.height).data;
+      const prev = steady.current.prev;
+      let diff = 0;
+      if (prev && prev.length === px.length) {
+        for (let i = 0; i < px.length; i += 4) diff += Math.abs(px[i] - prev[i]) + Math.abs(px[i + 1] - prev[i + 1]);
+        diff /= px.length / 2;
+      } else diff = 255;
+      steady.current.prev = px;
+      steady.current.count = diff < STEADY ? steady.current.count + 1 : 0;
+      if (steady.current.count < 2) return;
+
       busy.current = true;
       try {
-        const text = await readFrame(card);
+        const card = grab(1600);
+        if (!card) return;
+        // After an unsure result, also read the attacks for this card.
+        const read = await readStrips(card, reads.current++, wantBody.current);
         if (stop) return;
-        const clues = parseScanText(text);
-        const totals = new Set(clues.numbers.filter((n) => n.total != null).map((n) => `${n.local}/${n.total}`));
+        const totals = new Set(parseScanText(read.bottom).numbers.filter((n) => n.total != null).map((n) => `${n.local}/${n.total}`));
         if (totals.size > 1) {
           setHint("Only one card in the frame at a time.");
           return;
         }
-        if (!clues.numbers.length && clues.words.length < 2) {
-          setHint(null);
-          return;
-        }
+        if (read.title.trim().length < 3 && !totals.size) return;
         snapshot.current = card;
-        void submitMatch({ intent: "match", text, region }, { method: "post", action: "/add/scan" });
+        void submitMatch(
+          { intent: "match", title: read.title, bottom: read.bottom, body: read.body ?? "", region },
+          { method: "post", action: "/add/scan" },
+        );
       } finally {
         busy.current = false;
       }
     };
-    const id = setInterval(tick, 700);
+    const id = setInterval(tick, 120);
     return () => {
       stop = true;
       clearInterval(id);
     };
   }, [phase, grab, submitMatch, region, setPhase]);
 
-  // A match came back: offer it if it's confident and not just skipped.
+  // A match came back. Sure → ask right away. Not sure → keep looking, and
+  // after a few reads that agree on the name, offer the printings by artwork.
   const handled = useRef<MatchData | null>(null);
+  const attempts = useRef(new Map<string, number>());
   useEffect(() => {
     const data = match.data;
     if (!data || match.state !== "idle" || handled.current === data || phaseRef.current !== "scanning") return;
     handled.current = data;
     const list = data.candidates.filter((c) => !skipIds.current.has(c.id));
     const top = list[0];
-    // Worth asking about: the number and set size agree, or a name was read.
-    if (!top || (!top.why.includes("/") && top.score < 18)) {
-      setHint(top ? "Hold steady so the name and number are sharp." : null);
+    if (!top) return;
+    // Count repeat sightings by name, or by the leading card when no name read.
+    const key = data.guess ?? top.id;
+    const seen = (attempts.current.get(key) ?? 0) + 1;
+    attempts.current.set(key, seen);
+    wantBody.current = data.offer === "wait";
+    if (data.offer === "wait" && seen < 3) {
+      setHint(seen > 1 ? "Almost: tilt away from glare so the name and number are sharp." : null);
       return;
     }
     (async () => {
-      // No number read: several printings or names compete, so let the
-      // artwork's colours decide between them.
       let ordered = list;
       const shot = snapshot.current;
-      // The frame crops exactly to the card, so its colours can be trusted
-      // more than a loose photo's.
-      if (shot && !top.why.includes("/")) ordered = await rankByLooks(framePrint(shot), list, 50);
+      // No number to go on: the frame crops exactly to the card, so its
+      // colours pick between printings of the name.
+      if (data.offer === "wait" && shot) ordered = await rankByLooks(framePrint(shot), list, 50);
       if (phaseRef.current !== "scanning") return;
+      setSure(data.confident);
       setOptions(ordered.slice(0, 6));
       setPick(0);
       setHint(null);
@@ -266,7 +301,7 @@ export function LiveScanner({ region, defaultCondition, onClose }: { region: Reg
           <div className="flex gap-3">
             {card.image ? <img src={thumb(card.image)} alt="" className="h-28 w-20 shrink-0 rounded-md object-cover ring-1 ring-ink-700" /> : null}
             <div className="min-w-0 flex-1">
-              <div className="text-xs text-ink-400">Is this the card?</div>
+              <div className="text-xs text-ink-400">{sure ? "Is this the card?" : "Couldn't read the number. Which one is it?"}</div>
               <div className="truncate text-base font-semibold">{card.name}</div>
               <div className="truncate text-xs text-ink-400">
                 {card.setName} · {card.localId}

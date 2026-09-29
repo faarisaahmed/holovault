@@ -6,33 +6,45 @@ import type { Worker } from "tesseract.js";
  * and kept for the rest of the visit. Photos never leave the browser.
  */
 
-let worker: Promise<Worker> | null = null;
+interface Workers {
+  /** Reads one line: the card's name. */
+  title: Worker;
+  /** Reads scattered small print: collector number, set code. */
+  small: Worker;
+}
 
-function getWorker(onProgress?: (p: number) => void): Promise<Worker> {
-  worker ??= (async () => {
+let workers: Promise<Workers> | null = null;
+
+/** Two engines so the name and the number are read at the same time. */
+function getWorkers(onProgress?: (p: number) => void): Promise<Workers> {
+  workers ??= (async () => {
     const { createWorker, OEM, PSM } = await import("tesseract.js");
-    const w = await createWorker("eng", OEM.LSTM_ONLY, {
-      workerPath: "/ocr/worker.min.js",
-      corePath: "/ocr/",
-      langPath: "/ocr",
-      workerBlobURL: false,
-      logger: (m) => {
-        if (m.status.startsWith("loading") && typeof m.progress === "number") onProgress?.(m.progress);
-      },
-    });
-    // Cards are scattered text, not paragraphs.
-    await w.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT });
-    return w;
+    const make = () =>
+      createWorker("eng", OEM.LSTM_ONLY, {
+        workerPath: "/ocr/worker.min.js",
+        corePath: "/ocr/",
+        langPath: "/ocr",
+        workerBlobURL: false,
+        logger: (m) => {
+          if (m.status.startsWith("loading") && typeof m.progress === "number") onProgress?.(m.progress);
+        },
+      });
+    const [title, small] = await Promise.all([make(), make()]);
+    await Promise.all([
+      title.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_LINE }),
+      small.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT }),
+    ]);
+    return { title, small };
   })();
-  worker.catch(() => {
-    worker = null;
+  workers.catch(() => {
+    workers = null;
   });
-  return worker;
+  return workers;
 }
 
 /** Warm the engine up while the camera opens. */
 export function preloadOcr(onProgress?: (p: number) => void) {
-  void getWorker(onProgress).catch(() => {});
+  void getWorkers(onProgress).catch(() => {});
 }
 
 async function toBitmap(file: Blob): Promise<ImageBitmap> {
@@ -46,46 +58,113 @@ function draw(img: Source, sx: number, sy: number, sw: number, sh: number, scale
   const c = document.createElement("canvas");
   c.width = Math.round(sw * scale);
   c.height = Math.round(sh * scale);
-  const ctx = c.getContext("2d")!;
+  const ctx = c.getContext("2d", { willReadFrequently: boost })!;
   if (boost) ctx.filter = "grayscale(1) contrast(1.6)";
   ctx.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
   return c;
 }
 
 /**
- * Reads a card image: the whole card for the name, the title strip enlarged,
- * then the bottom strip enlarged, where the tiny collector number ("199/165")
- * lives.
+ * Light text on a dark band (full-art titles, dark borders) reads far better
+ * flipped to dark on light.
  */
-async function readImage(img: Source, onProgress?: (p: number) => void): Promise<string> {
-  const w = await getWorker(onProgress);
-  const long = Math.max(img.width, img.height);
-  const whole = draw(img, 0, 0, img.width, img.height, Math.min(1, 1600 / long), false);
-  const stripH = img.height * 0.3;
-  const stripScale = Math.min(2.5, 2400 / img.width);
-  const bottom = draw(img, 0, img.height - stripH, img.width, stripH, stripScale, true);
-  const top = draw(img, 0, 0, img.width, img.height * 0.16, Math.min(2, 2000 / img.width), true);
-  const parts: string[] = [];
-  for (const canvas of [whole, top, bottom]) {
-    const { data } = await w.recognize(canvas);
-    parts.push(data.text);
+function darkToLight(c: HTMLCanvasElement): HTMLCanvasElement {
+  const ctx = c.getContext("2d", { willReadFrequently: true })!;
+  const img = ctx.getImageData(0, 0, c.width, c.height);
+  const px = img.data;
+  let sum = 0;
+  const step = 4 * 7;
+  for (let i = 0; i < px.length; i += step) sum += px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11;
+  if (sum / (px.length / step) >= 110) return c;
+  for (let i = 0; i < px.length; i += 4) {
+    px[i] = 255 - px[i];
+    px[i + 1] = 255 - px[i + 1];
+    px[i + 2] = 255 - px[i + 2];
   }
-  return parts.join("\n");
+  ctx.putImageData(img, 0, 0);
+  return c;
 }
 
-/** Reads a card photo from a file. */
-export async function readCard(file: Blob, onProgress?: (p: number) => void): Promise<string> {
+export interface CardText {
+  title: string;
+  bottom: string;
+  /** Attacks and abilities, read only when title and number weren't enough. */
+  body?: string;
+  /** Whole-card read, only when asked for (slow; photos that didn't match). */
+  text?: string;
+}
+
+/** Scales a region so its text is about the height Tesseract reads best. */
+function strip(img: Source, x: number, y: number, w: number, h: number, targetH: number, boost: boolean) {
+  return draw(img, x, y, w, h, Math.min(4, targetH / h), boost);
+}
+
+/**
+ * Reads the two parts of a card that identify it, in parallel: the title
+ * line (name) and the bottom strip (number like 199/165, set code like MEW).
+ * `card` must be cropped to the card itself. Roughly a quarter of a whole-card
+ * read.
+ */
+export async function readStrips(card: Source, attempt = 0, withBody = false): Promise<CardText> {
+  const { title, small } = await getWorkers();
+  const W = card.width;
+  const H = card.height;
+  // Title colours vary wildly, so alternate plain and high-contrast reads
+  // between attempts; one of them usually lands.
+  const top = darkToLight(strip(card, W * 0.03, H * 0.025, W * 0.8, H * 0.095, 70, attempt % 2 === 1));
+  // Collector numbers sit in the bottom tenth, a few pixels tall: enlarge a lot.
+  const bottom = darkToLight(strip(card, 0, H * 0.885, W, H * 0.1, 230, true));
+  const [t, b] = await Promise.all([title.recognize(top), small.recognize(bottom)]);
+  let body: string | undefined;
+  if (withBody) {
+    const mid = strip(card, W * 0.04, H * 0.5, W * 0.92, H * 0.37, Math.min(700, H * 0.37), false);
+    body = (await small.recognize(mid)).data.text;
+  }
+  return { title: t.data.text, bottom: b.data.text, body };
+}
+
+/** The largest card-shaped box centred in an image, at a given share of it. */
+function cardBox(img: Source, share: number): [number, number, number, number] {
+  const ratio = 63 / 88;
+  let h = img.height * share;
+  let w = h * ratio;
+  if (w > img.width * share) {
+    w = img.width * share;
+    h = w / ratio;
+  }
+  return [(img.width - w) / 2, (img.height - h) / 2, w, h];
+}
+
+/**
+ * Reads a card photo. Assumes the card fills most of the picture, as the tips
+ * ask; `thorough` adds a slow whole-picture read for photos that didn't match.
+ */
+export async function readCard(file: Blob, thorough = false): Promise<CardText> {
   const img = await toBitmap(file);
   try {
-    return await readImage(img, onProgress);
+    // The card fills "most" of a photo: try it filling nearly all, then a
+    // little less. Each line of the title is weighed separately server-side.
+    const reads: CardText[] = [];
+    for (const share of [0.97, 0.8]) {
+      const [x, y, w, h] = cardBox(img, share);
+      reads.push(await readStrips(draw(img, x, y, w, h, Math.min(1, 1200 / w), false), reads.length));
+    }
+    const read = { title: reads.map((r) => r.title.trim()).join("\n"), bottom: reads.map((r) => r.bottom).join("\n") };
+    if (!thorough) return read;
+    // The slow read: the whole photo, plus its top and bottom enlarged.
+    const { small } = await getWorkers();
+    const long = Math.max(img.width, img.height);
+    const passes = [
+      draw(img, 0, 0, img.width, img.height, Math.min(1, 1600 / long), false),
+      draw(img, 0, 0, img.width, img.height * 0.16, Math.min(2, 2000 / img.width), true),
+      draw(img, 0, img.height * 0.7, img.width, img.height * 0.3, Math.min(2.5, 2400 / img.width), true),
+    ];
+    const texts: string[] = [];
+    for (const c of passes) texts.push((await small.recognize(c)).data.text);
+    return { ...read, text: texts.join("\n") };
   } finally {
     img.close();
   }
-}
-
-/** Reads a canvas already cropped to exactly one card (the live scanner's frame). */
-export function readFrame(card: HTMLCanvasElement): Promise<string> {
-  return readImage(card);
 }
 
 /*

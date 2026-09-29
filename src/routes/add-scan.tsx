@@ -5,7 +5,7 @@ import { ConditionPicker, useStickyCondition } from "@/components/condition-pick
 import { finishShort } from "@/components/finish";
 import { LiveScanner } from "@/components/live-scanner";
 import { usd } from "@/lib/format";
-import { photoPrint, preloadOcr, rankByLooks, readCard } from "@/lib/ocr.client";
+import { photoPrint, preloadOcr, rankByLooks, readCard, type CardText } from "@/lib/ocr.client";
 import { requireUser } from "@/lib/server/auth.server";
 import { handleCardAction, type CardActionResult } from "@/lib/server/card-actions.server";
 import { finishPrices, finishesFor } from "@/lib/server/catalog.server";
@@ -40,9 +40,13 @@ export async function action({ request }: Route.ActionArgs) {
   if (form.get("intent") !== "match") {
     return (await handleCardAction(user.id, form)) ?? { error: "Unknown request." };
   }
-  const text = String(form.get("text") ?? "").slice(0, 8000);
+  const field = (k: string, max: number) => String(form.get(k) ?? "").slice(0, max);
   const region: Region = form.get("region") === "ja" ? "ja" : "en";
-  const { matches, guess } = matchScan(text, region, 16);
+  const { matches, guess, confident, offer } = matchScan(
+    { title: field("title", 300), bottom: field("bottom", 1000), text: field("text", 8000), body: field("body", 3000) },
+    region,
+    16,
+  );
   const ids = matches.map((m) => m.card.id);
   const prices = finishPrices(ids);
   const owned = await ownedCounts(user.id, ids);
@@ -61,7 +65,7 @@ export async function action({ request }: Route.ActionArgs) {
       finishes: finishesFor(c, p).map((f) => ({ name: f, price: p?.get(f) ?? (f === "Normal" || f === "Holofoil" ? c.marketPrice : null) })),
     };
   });
-  return { candidates, guess };
+  return { candidates, guess, confident, offer };
 }
 
 interface Shot {
@@ -173,7 +177,8 @@ let queue: Promise<unknown> = Promise.resolve();
 function ScanRow({ shot, region, condition, onRemove }: { shot: Shot; region: Region; condition: string; onRemove: () => void }) {
   const match = useFetcher<typeof action>();
   const [status, setStatus] = useState<Status>("queued");
-  const [text, setText] = useState("");
+  const [read, setRead] = useState<CardText | null>(null);
+  const [thorough, setThorough] = useState(false);
   const [added, setAdded] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const submit = match.submit;
@@ -184,9 +189,9 @@ function ScanRow({ shot, region, condition, onRemove }: { shot: Shot; region: Re
       if (!live) return;
       setStatus("reading");
       try {
-        const t = await readCard(shot.file);
+        const t = await readCard(shot.file, thorough);
         if (!live) return;
-        setText(t);
+        setRead(t);
         setStatus("matching");
       } catch {
         if (live) setStatus("failed");
@@ -195,13 +200,18 @@ function ScanRow({ shot, region, condition, onRemove }: { shot: Shot; region: Re
     return () => {
       live = false;
     };
-  }, [shot.file]);
+  }, [shot.file, thorough]);
 
   // Re-match when the text arrives or the language switch changes.
   useEffect(() => {
-    if (!text) return;
-    void submit({ intent: "match", text, region }, { method: "post" });
-  }, [text, region, submit]);
+    if (!read) return;
+    void submit({ intent: "match", title: read.title, bottom: read.bottom, text: read.text ?? "", region }, { method: "post" });
+  }, [read, region, submit]);
+
+  // The quick read found nothing certain: read the whole photo once, slowly.
+  const result = match.data && "candidates" in match.data ? match.data : null;
+  const needsThorough = !!result && !result.confident && !thorough && match.state === "idle" && status === "matching";
+  if (needsThorough) setThorough(true);
 
   const data = match.data && "candidates" in match.data ? match.data : null;
   const [ranked, setRanked] = useState<{ for: Candidate[]; list: Candidate[] } | null>(null);
@@ -228,7 +238,7 @@ function ScanRow({ shot, region, condition, onRemove }: { shot: Shot; region: Re
   const busy = status === "queued" || status === "reading" || match.state !== "idle" || (status === "matching" && !data);
 
   return (
-    <li className="rounded-xl border border-ink-800 bg-ink-900 p-3" data-ocr={import.meta.env.DEV ? text : undefined}>
+    <li className="rounded-xl border border-ink-800 bg-ink-900 p-3" data-ocr={import.meta.env.DEV && read ? `${read.title} || ${read.bottom} || ${read.text ?? ""}` : undefined}>
       <div className="flex gap-3">
         <img src={shot.url} alt="Your photo" className="h-28 w-20 shrink-0 rounded-md object-cover ring-1 ring-ink-700" />
         <div className="min-w-0 flex-1">

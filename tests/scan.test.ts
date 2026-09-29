@@ -34,3 +34,13 @@ test("edit distance stops early past the cap", () => {
   assert.equal(editDistance("charizard", "charizrd", 1), 1);
   assert.equal(editDistance("charizard", "blastoise", 1), 2);
 });
+
+test("splits a collector number whose slash was read as a digit", () => {
+  const locals = parseScanText("When your Pokémon V is Knocked Out 2517264").numbers.map((n) => `${n.local}/${n.total}`);
+  assert.ok(locals.includes("251/264"));
+});
+
+test("reads the stylized ex logo in a title", () => {
+  // Title parsing lives server-side; the clue parser must leave the name words alone.
+  assert.ok(parseScanText("Charizard @X").words.includes("charizard"));
+});
