@@ -22,7 +22,7 @@ export function AddedToast({ added, onClose }: { added: Added | null; onClose: (
   }, [added, onClose]);
   if (!added) return null;
   return (
-    <div role="status" className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-ink-700 bg-ink-850 px-4 py-2.5 text-sm shadow-xl">
+    <div role="status" className="fixed bottom-20 left-1/2 md:bottom-4 z-50 flex -translate-x-1/2 items-center gap-3 rounded-lg border border-ink-700 bg-ink-850 px-4 py-2.5 text-sm shadow-xl">
       <span>
         Added {added.quantity > 1 ? `${added.quantity}× ` : ""}
         <strong>{added.name}</strong>{" "}

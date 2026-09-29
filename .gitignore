@@ -39,3 +39,6 @@ yarn-error.log*
 /data/*.db-wal
 /data/*.db-shm
 /data/userdb
+
+# OCR engine, copied from node_modules by scripts/ocr-assets.ts
+/public/ocr/*.js

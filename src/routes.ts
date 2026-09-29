@@ -5,6 +5,7 @@ export default [
   route("login", "routes/login.tsx"),
   route("reset-password", "routes/reset-password.tsx"),
   route("add", "routes/add.tsx"),
+  route("add/scan", "routes/add-scan.tsx"),
   route("collection", "routes/collection.tsx"),
   route("sets", "routes/sets.tsx"),
   route("sets/:setId", "routes/set-detail.tsx"),

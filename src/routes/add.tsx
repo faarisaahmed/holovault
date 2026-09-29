@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useActionData, useFetcher, useNavigation } from "react-router";
+import { Link, useActionData, useFetcher, useNavigation } from "react-router";
 import type { Route } from "./+types/add";
 import { AddPanel, type AddableCard } from "@/components/add-panel";
 import { SearchBox, Toggle } from "@/components/controls";
@@ -83,11 +83,18 @@ export default function AddCards({ loaderData }: Route.ComponentProps) {
           ]}
         />
         {searching ? <span className="text-xs text-ink-500">Searching…</span> : null}
+        <Link to="/add/scan" className="ml-auto rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-200 hover:border-accent">
+          Scan with camera
+        </Link>
       </div>
 
       {q.trim().length < 2 ? (
         <p className="rounded-xl border border-dashed border-ink-700 px-4 py-14 text-center text-sm text-ink-400">
-          Start typing to find a card. Have a spreadsheet already?{" "}
+          Start typing to find a card, or{" "}
+          <Link to="/add/scan" className="text-accent underline">
+            scan it with your camera
+          </Link>
+          . Have a spreadsheet already?{" "}
           <a href="/import" className="text-accent underline">
             Import it
           </a>

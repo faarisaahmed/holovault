@@ -71,11 +71,16 @@ export function searchCards(query: string, region: Region, limit = 60): CatalogC
   const where: string[] = [`c.region = @region`, NOT_SUBSET_COPY.replace("id", "c.id")];
   const params: Record<string, unknown> = { region, limit };
   tokens.forEach((t, i) => {
-    const num = t.match(/^#?0*(\d+)(?:\/\d+)?$/);
+    const num = t.match(/^#?0*(\d+)(?:\/(\d+))?$/);
     if (num) {
       where.push(`(c.number_sort = @n${i} OR lower(c.local_id) = @t${i})`);
       params[`n${i}`] = Number(num[1]);
       params[`t${i}`] = t.replace(/^#/, "").split("/")[0];
+      // "199/165" names the set too: only sets of that size.
+      if (num[2]) {
+        where.push(`s.card_count_official = @c${i}`);
+        params[`c${i}`] = Number(num[2]);
+      }
       return;
     }
     where.push(

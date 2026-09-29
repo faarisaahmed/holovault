@@ -25,6 +25,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const q = (sp.get("q") ?? "").trim().toLowerCase();
   const kind = sp.get("kind") ?? "all";
   const sort = (sp.get("sort") ?? "value") as keyof typeof SORTS;
+  const view = sp.get("view") === "grid" ? "grid" : "list";
   const all = await valuedCollection(user.id);
 
   let items = all.filter((i) => {
@@ -54,7 +55,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const finishOptions = Object.fromEntries(
     items.map((i) => [i.cardId, i.card ? finishesFor(i.card, prices.get(i.cardId)) : [i.finish]]),
   );
-  return { items, all: totals(all), shown: totals(items), q, kind, sort, finishOptions };
+  return { items, all: totals(all), shown: totals(items), q, kind, sort, view, finishOptions };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -80,8 +81,16 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Collection({ loaderData, actionData }: Route.ComponentProps) {
-  const { items, all, shown, q, kind, sort, finishOptions } = loaderData;
+  const { items, all, shown, q, kind, sort, view, finishOptions } = loaderData;
   const [editing, setEditing] = useState<string | null>(null);
+  const editor = (i: OwnedItem) => (
+    <EditRow
+      item={i}
+      finishes={finishOptions[i.cardId] ?? [i.finish]}
+      error={actionData && "id" in actionData && actionData.id === i.id ? actionData.error : undefined}
+      onClose={() => setEditing(null)}
+    />
+  );
 
   return (
     <>
@@ -116,72 +125,146 @@ export default function Collection({ loaderData, actionData }: Route.ComponentPr
           ]}
         />
         <Select name="sort" label="Sort" value={sort} options={Object.entries(SORTS).map(([value, label]) => ({ value, label }))} />
+        <div className="ml-auto">
+          <Toggle
+            name="view"
+            value={view}
+            options={[
+              { value: "list", label: "List" },
+              { value: "grid", label: "Cards" },
+            ]}
+          />
+        </div>
       </div>
 
       {items.length === 0 ? (
         <p className="rounded-xl border border-dashed border-ink-700 px-4 py-14 text-center text-sm text-ink-400">
           {all.copies ? "Nothing matches those filters." : "No cards yet — add some to get started."}
         </p>
+      ) : view === "grid" ? (
+        <div className="grid grid-cols-3 gap-x-3 gap-y-4 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
+          {items.map((i) =>
+            editing === i.id ? (
+              <div key={i.id} className="col-span-3 rounded-xl border border-accent/40 bg-ink-900 p-3 sm:col-span-4 md:col-span-5 lg:col-span-7">
+                {editor(i)}
+              </div>
+            ) : (
+              <button key={i.id} onClick={() => setEditing(i.id)} className="group flex flex-col text-left" title="Edit">
+                <span className="relative block overflow-hidden rounded-lg bg-ink-850 ring-1 ring-ink-800 transition group-hover:-translate-y-0.5 group-hover:ring-accent">
+                  {i.card?.image ? (
+                    <img src={i.card.image} alt={i.card.name} loading="lazy" className="aspect-[245/342] w-full object-cover" />
+                  ) : (
+                    <span className="grid aspect-[245/342] place-items-center px-2 text-center text-[10px] text-ink-500">{i.card?.name ?? i.cardId}</span>
+                  )}
+                  {i.quantity > 1 ? (
+                    <span className="absolute right-1 top-1 rounded bg-ink-950/85 px-1.5 py-0.5 text-[10px] font-bold text-ink-100">×{i.quantity}</span>
+                  ) : null}
+                </span>
+                <span className="mt-1.5 flex items-baseline justify-between gap-1 px-0.5">
+                  <span className="truncate text-[11px] text-ink-200">{i.card?.name ?? i.cardId}</span>
+                  <span className="tnum shrink-0 text-[11px] font-semibold text-accent">
+                    {i.unitValue != null ? usd(i.unitValue * i.quantity, { compact: true }) : "—"}
+                  </span>
+                </span>
+                <span className="flex items-center gap-1 px-0.5 text-[10px] text-ink-500">
+                  {finishShort(i.finish)} <CopyBadge {...i} />
+                </span>
+              </button>
+            ),
+          )}
+        </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-ink-800 bg-ink-900">
-          <table className="w-full min-w-[760px] text-sm">
-            <thead>
-              <tr className="border-b border-ink-800 text-left text-[10px] uppercase tracking-wider text-ink-400">
-                <th className="px-3 py-2 font-medium">Card</th>
-                <th className="px-3 py-2 font-medium">Printing</th>
-                <th className="px-3 py-2 font-medium">Copy</th>
-                <th className="px-3 py-2 text-right font-medium">Qty</th>
-                <th className="px-3 py-2 text-right font-medium">Each</th>
-                <th className="px-3 py-2 text-right font-medium">Total</th>
-                <th className="px-3 py-2 text-right font-medium">Paid</th>
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((i) =>
-                editing === i.id ? (
-                  <tr key={i.id} className="border-b border-ink-850 bg-ink-850">
-                    <td colSpan={8} className="p-3">
-                      <EditRow item={i} finishes={finishOptions[i.cardId] ?? [i.finish]} error={actionData && "id" in actionData && actionData.id === i.id ? actionData.error : undefined} onClose={() => setEditing(null)} />
-                    </td>
-                  </tr>
+        <>
+          {/* Phones: one compact row per copy, value always visible. */}
+          <ul className="divide-y divide-ink-850 overflow-hidden rounded-xl border border-ink-800 bg-ink-900 md:hidden">
+            {items.map((i) => (
+              <li key={i.id}>
+                {editing === i.id ? (
+                  <div className="bg-ink-850 p-3">{editor(i)}</div>
                 ) : (
-                  <tr key={i.id} className="border-b border-ink-850 last:border-0 hover:bg-ink-850">
-                    <td className="px-3 py-2">
-                      <div className="flex items-center gap-2.5">
-                        {i.card?.image ? <img src={i.card.image} alt="" loading="lazy" className="h-12 w-auto rounded-sm ring-1 ring-ink-700" /> : null}
-                        <div className="min-w-0">
-                          <div className="truncate font-medium">{i.card?.name ?? i.cardId}</div>
-                          <div className="truncate text-[11px] text-ink-500">
-                            {i.card?.setName} · {i.card?.localId}
+                  <button onClick={() => setEditing(i.id)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left active:bg-ink-850">
+                    {i.card?.image ? <img src={i.card.image} alt="" loading="lazy" className="h-14 w-auto shrink-0 rounded-sm ring-1 ring-ink-700" /> : null}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">
+                        {i.card?.name ?? i.cardId}
+                        {i.quantity > 1 ? <span className="ml-1 text-ink-400">×{i.quantity}</span> : null}
+                      </span>
+                      <span className="block truncate text-[11px] text-ink-500">
+                        {i.card?.setName} · {i.card?.localId}
+                      </span>
+                      <span className="mt-1 flex items-center gap-1.5 text-[10px] text-ink-400">
+                        {finishShort(i.finish)} <CopyBadge {...i} />
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-right">
+                      <span className="tnum block text-sm font-semibold text-accent">{i.unitValue != null ? usd(i.unitValue * i.quantity) : "—"}</span>
+                      {i.purchaseCents != null ? (
+                        <span className="tnum block text-[10px] text-ink-500">paid {usd((i.purchaseCents / 100) * i.quantity)}</span>
+                      ) : null}
+                    </span>
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+          <div className="hidden overflow-x-auto rounded-xl border border-ink-800 bg-ink-900 md:block">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead>
+                <tr className="border-b border-ink-800 text-left text-[10px] uppercase tracking-wider text-ink-400">
+                  <th className="px-3 py-2 font-medium">Card</th>
+                  <th className="px-3 py-2 font-medium">Printing</th>
+                  <th className="px-3 py-2 font-medium">Copy</th>
+                  <th className="px-3 py-2 text-right font-medium">Qty</th>
+                  <th className="px-3 py-2 text-right font-medium">Each</th>
+                  <th className="px-3 py-2 text-right font-medium">Total</th>
+                  <th className="px-3 py-2 text-right font-medium">Paid</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((i) =>
+                  editing === i.id ? (
+                    <tr key={i.id} className="border-b border-ink-850 bg-ink-850">
+                      <td colSpan={8} className="p-3">
+                        {editor(i)}
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={i.id} onClick={() => setEditing(i.id)} className="cursor-pointer border-b border-ink-850 last:border-0 hover:bg-ink-850">
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2.5">
+                          {i.card?.image ? <img src={i.card.image} alt="" loading="lazy" className="h-12 w-auto rounded-sm ring-1 ring-ink-700" /> : null}
+                          <div className="min-w-0">
+                            <div className="truncate font-medium">{i.card?.name ?? i.cardId}</div>
+                            <div className="truncate text-[11px] text-ink-500">
+                              {i.card?.setName} · {i.card?.localId}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-3 py-2 text-xs text-ink-300">{finishShort(i.finish)}</td>
-                    <td className="px-3 py-2">
-                      <CopyBadge {...i} />
-                    </td>
-                    <td className="tnum px-3 py-2 text-right text-xs">{i.quantity}</td>
-                    <td className="tnum px-3 py-2 text-right text-xs" title={i.valueSource === "override" ? "Your own value" : i.estimate ? "Market price with an estimated condition discount" : undefined}>
-                      {usd(i.unitValue)}
-                      {i.valueSource === "override" ? <span className="text-ink-500">*</span> : i.estimate ? <span className="text-ink-500">~</span> : null}
-                    </td>
-                    <td className="tnum px-3 py-2 text-right font-semibold text-accent">
-                      {i.unitValue != null ? usd(i.unitValue * i.quantity) : "—"}
-                    </td>
-                    <td className="tnum px-3 py-2 text-right text-xs text-ink-400">{i.purchaseCents != null ? usd(i.purchaseCents / 100) : "—"}</td>
-                    <td className="px-3 py-2 text-right">
-                      <button onClick={() => setEditing(i.id)} className="text-xs text-ink-400 underline hover:text-accent">
-                        Edit
-                      </button>
-                    </td>
-                  </tr>
-                ),
-              )}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                      <td className="px-3 py-2 text-xs text-ink-300">{finishShort(i.finish)}</td>
+                      <td className="px-3 py-2">
+                        <CopyBadge {...i} />
+                      </td>
+                      <td className="tnum px-3 py-2 text-right text-xs">{i.quantity}</td>
+                      <td className="tnum px-3 py-2 text-right text-xs" title={i.valueSource === "override" ? "Your own value" : i.estimate ? "Market price with an estimated condition discount" : undefined}>
+                        {usd(i.unitValue)}
+                        {i.valueSource === "override" ? <span className="text-ink-500">*</span> : i.estimate ? <span className="text-ink-500">~</span> : null}
+                      </td>
+                      <td className="tnum px-3 py-2 text-right font-semibold text-accent">
+                        {i.unitValue != null ? usd(i.unitValue * i.quantity) : "—"}
+                      </td>
+                      <td className="tnum px-3 py-2 text-right text-xs text-ink-400">{i.purchaseCents != null ? usd(i.purchaseCents / 100) : "—"}</td>
+                      <td className="px-3 py-2 text-right">
+                        <span className="text-xs text-ink-400 underline">Edit</span>
+                      </td>
+                    </tr>
+                  ),
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
       <p className="mt-3 text-[11px] text-ink-500">
         ~ played-condition value, estimated from typical TCGplayer discounts on the Near Mint price. * your own value.

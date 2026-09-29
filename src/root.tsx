@@ -13,6 +13,7 @@ import {
 } from "react-router";
 import type { Route } from "./+types/root";
 import "./app.css";
+import { MobileNav } from "@/components/mobile-nav";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { THEME_INIT_SCRIPT } from "@/lib/themes";
 import { getSessionUser } from "@/lib/server/auth.server";
@@ -41,14 +42,17 @@ export const headers: Route.HeadersFunction = () => {
     "X-Frame-Options": "DENY",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
-    "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
+    // The card scanner uses the camera on this site only.
+    "Permissions-Policy": "camera=(self), microphone=(), geolocation=(), payment=()",
   };
   if (process.env.NODE_ENV === "production") {
     h["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains";
     h["Content-Security-Policy"] = [
       "default-src 'self'",
-      "img-src 'self' data: https://assets.tcgdex.net https://tcgplayer-cdn.tcgplayer.com",
-      "script-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https://assets.tcgdex.net https://tcgplayer-cdn.tcgplayer.com",
+      // wasm-unsafe-eval lets the on-device OCR engine (served from /ocr) run.
+      "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+      "worker-src 'self'",
       "style-src 'self' 'unsafe-inline'",
       "connect-src 'self'",
       "form-action 'self' https://accounts.google.com",
@@ -116,10 +120,10 @@ export default function App({ loaderData }: Route.ComponentProps) {
         <div className="mx-auto flex max-w-[1400px] items-center gap-3 px-4 py-3 sm:gap-6">
           <Link to="/" className="flex shrink-0 items-center gap-2 font-semibold tracking-tight">
             <img src="/favicon.svg" alt="" className="h-6 w-6" />
-            <span className="hidden sm:inline">Shadowless</span>
+            <span>Shadowless</span>
           </Link>
           {user ? (
-            <nav className="-my-1 flex min-w-0 flex-1 items-center gap-4 overflow-x-auto whitespace-nowrap py-1 text-sm text-ink-300">
+            <nav className="-my-1 hidden min-w-0 flex-1 items-center gap-4 overflow-x-auto whitespace-nowrap py-1 text-sm text-ink-300 md:flex">
               {nav.map((n) => (
                 <NavLink
                   key={n.to}
@@ -131,9 +135,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
                 </NavLink>
               ))}
             </nav>
-          ) : (
-            <div className="flex-1" />
-          )}
+          ) : null}
           <div className="ml-auto flex shrink-0 items-center gap-3">
             <ThemeSwitcher />
             {user ? (
@@ -156,7 +158,8 @@ export default function App({ loaderData }: Route.ComponentProps) {
       <main className="mx-auto max-w-[1400px] px-4 py-6">
         <Outlet />
       </main>
-      <footer className="mx-auto max-w-[1400px] px-4 pb-10 pt-4 text-[11px] leading-relaxed text-ink-400">
+      {user ? <MobileNav items={[...nav, { to: "/import", label: "Import" }, { to: "/settings", label: "Settings" }]} /> : null}
+      <footer className="mx-auto max-w-[1400px] px-4 pb-24 pt-4 md:pb-10 text-[11px] leading-relaxed text-ink-400">
         Your collection is private to your account and never shared or sold. No ads, no analytics.
         Card data from TCGdex, market prices from TCGplayer via TCGCSV. Condition discounts are
         estimates.

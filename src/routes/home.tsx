@@ -26,7 +26,11 @@ export async function loader({ request }: Route.LoaderArgs) {
     s.copies += i.quantity;
     bySet.set(i.card.setId, s);
   }
-  const sets = (await mySets(user.id)).sort((a, b) => b.base.pct - a.base.pct).slice(0, 4);
+  // A set you own one card of isn't "close"; only show real progress.
+  const sets = (await mySets(user.id))
+    .filter((s) => s.base.pct >= 0.05)
+    .sort((a, b) => b.base.pct - a.base.pct)
+    .slice(0, 4);
   const gradeable = items.filter(
     (i) => !i.grader && (i.condition === "M" || i.condition === "NM") && (i.marketNm ?? 0) >= gradingCost,
   ).length;
@@ -53,10 +57,13 @@ export default function Home({ loaderData }: Route.ComponentProps) {
     return (
       <div className="mx-auto max-w-xl py-16 text-center">
         <h1 className="text-2xl font-semibold tracking-tight">Welcome, {name.split(" ")[0]}</h1>
-        <p className="mt-2 text-sm text-ink-400">Your collection is empty. Two ways to start:</p>
-        <div className="mt-6 flex justify-center gap-3">
+        <p className="mt-2 text-sm text-ink-400">Your collection is empty. A few ways to start:</p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Link to="/add" className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-black">
             Add cards
+          </Link>
+          <Link to="/add/scan" className="rounded-md border border-ink-700 px-4 py-2 text-sm text-ink-200 hover:border-accent">
+            Scan with your camera
           </Link>
           <Link to="/import" className="rounded-md border border-ink-700 px-4 py-2 text-sm text-ink-200 hover:border-accent">
             Import a spreadsheet
@@ -68,7 +75,17 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 
   return (
     <>
-      <h1 className="mb-4 text-2xl font-semibold tracking-tight">Your collection</h1>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <h1 className="text-2xl font-semibold tracking-tight">Your collection</h1>
+        <div className="ml-auto flex gap-2 text-xs">
+          <Link to="/add/scan" className="rounded-md border border-ink-700 px-3 py-1.5 text-ink-200 hover:border-accent">
+            Scan cards
+          </Link>
+          <Link to="/add" className="rounded-md bg-accent px-3 py-1.5 font-semibold text-black">
+            Add cards
+          </Link>
+        </div>
+      </div>
       <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Tile label="Value" value={usd(t.value)} sub={t.unpriced ? `${t.unpriced} unpriced` : "market, today"} accent />
         <Tile label="Cards" value={t.copies.toLocaleString()} sub={`${t.unique.toLocaleString()} different`} />
@@ -86,17 +103,17 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <section>
           <h2 className="mb-2 text-sm font-semibold text-ink-200">Most valuable</h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-4 gap-2 sm:gap-3">
             {top.map((i) => (
               <div key={i.id} className="flex flex-col">
                 {i.card?.image ? (
                   <img src={i.card.image} alt={i.card.name} loading="lazy" className="aspect-[245/342] w-full rounded-lg object-cover ring-1 ring-ink-800" />
                 ) : null}
                 <div className="mt-1 flex items-center gap-1.5">
-                  <span className="truncate text-[11px] text-ink-300">{i.card?.name}</span>
-                  <span className="ml-auto text-xs font-semibold text-accent">{usd(i.unitValue, { compact: true })}</span>
+                  <span className="hidden truncate text-[11px] text-ink-300 sm:inline">{i.card?.name}</span>
+                  <span className="text-xs font-semibold text-accent sm:ml-auto">{usd(i.unitValue, { compact: true })}</span>
                 </div>
-                <div className="flex items-center gap-1 text-[10px] text-ink-500">
+                <div className="hidden items-center gap-1 text-[10px] text-ink-500 sm:flex">
                   {finishShort(i.finish)} <CopyBadge {...i} />
                 </div>
               </div>
@@ -111,7 +128,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                 <span className="min-w-0 flex-1 truncate">
                   {i.card?.name} <span className="text-ink-500">· {i.card?.setName}</span>
                 </span>
-                <span className="text-[11px] text-ink-400">{finishShort(i.finish)}</span>
+                <span className="hidden text-[11px] text-ink-400 sm:inline">{finishShort(i.finish)}</span>
                 <CopyBadge {...i} />
                 <span className="w-16 text-right text-xs">{usd(i.unitValue)}</span>
               </li>
@@ -140,6 +157,15 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           </section>
           <section>
             <h2 className="mb-2 text-sm font-semibold text-ink-200">Closest to complete</h2>
+            {sets.length === 0 ? (
+              <p className="text-xs text-ink-500">
+                No set is past 5% yet. Open any set from{" "}
+                <Link to="/sets" className="underline hover:text-accent">
+                  Sets
+                </Link>{" "}
+                to see what's missing.
+              </p>
+            ) : null}
             <ul className="space-y-2">
               {sets.map((s) => (
                 <li key={s.set.id}>
