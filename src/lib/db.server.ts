@@ -91,6 +91,23 @@ CREATE TABLE IF NOT EXISTS sealed (
 CREATE INDEX IF NOT EXISTS idx_sealed_set ON sealed(set_id);
 CREATE INDEX IF NOT EXISTS idx_sealed_kind ON sealed(kind);
 
+-- Every sealed product TCGplayer lists (boxes, ETBs, tins, cases, blisters...),
+-- for the opt-in sealed inventory. The "sealed" table above is only the kinds
+-- used for pack prices.
+CREATE TABLE IF NOT EXISTS sealed_catalog (
+  product_id  INTEGER PRIMARY KEY,
+  set_id      TEXT NOT NULL,
+  region      TEXT NOT NULL,
+  category    TEXT NOT NULL,
+  name        TEXT NOT NULL,
+  image       TEXT,
+  url         TEXT,
+  market      REAL,
+  low         REAL,
+  updated_at  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_sealed_catalog_set ON sealed_catalog(set_id);
+
 CREATE TABLE IF NOT EXISTS psa_prices (
   card_id     TEXT NOT NULL,
   grade       TEXT NOT NULL,

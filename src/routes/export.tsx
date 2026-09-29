@@ -2,6 +2,7 @@ import type { Route } from "./+types/export";
 import { requireUser } from "@/lib/server/auth.server";
 import { listBinders } from "@/lib/server/binder.server";
 import { valuedCollection } from "@/lib/server/collection.server";
+import { sealedExport } from "@/lib/server/sealed.server";
 
 /** Downloads the signed-in user's own data. Never cached, never shared. */
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -34,6 +35,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         notes: i.notes,
       })),
       binders: (await listBinders(user.id)).map((b) => ({ name: b.name, rows: b.rows, cols: b.cols, config: b.config })),
+      sealed: await sealedExport(user.id),
     };
     return new Response(JSON.stringify(body, null, 2), {
       headers: { ...headers, "Content-Type": "application/json", "Content-Disposition": `attachment; filename="shadowless-${date}.json"` },

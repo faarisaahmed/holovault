@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  date,
   index,
   integer,
   jsonb,
@@ -164,6 +165,8 @@ export const userSettings = pgTable("user_settings", {
   gradingShippingCents: integer("grading_shipping_cents").notNull().default(500),
   defaultCondition: text("default_condition").notNull().default("NM"),
   defaultRegion: text("default_region").notNull().default("en"),
+  /** Opt-in sealed inventory (for people who buy and sell sealed product). */
+  sealedEnabled: boolean("sealed_enabled").notNull().default(false),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
@@ -186,3 +189,74 @@ export const gradedFetch = pgTable("graded_fetch", {
   status: text("status").notNull(),
   fetchedAt: timestamp("fetched_at").notNull().defaultNow(),
 });
+
+// ---------------------------------------------------------------- sealed
+
+/** One purchase of a sealed product: how many, at what price, when. */
+export const sealedLot = pgTable(
+  "sealed_lot",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    /** TCGplayer product id (see the catalog's sealed_catalog table). */
+    productId: integer("product_id").notNull(),
+    quantity: integer("quantity").notNull(),
+    /** Price paid per unit, in cents, including tax and shipping if you like. */
+    unitCostCents: integer("unit_cost_cents").notNull(),
+    boughtOn: date("bought_on"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("sealed_lot_user_idx").on(t.userId), index("sealed_lot_user_product_idx").on(t.userId, t.productId)],
+);
+
+/** A sale of sealed product, which takes units out of the holding. */
+export const sealedSale = pgTable(
+  "sealed_sale",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    productId: integer("product_id").notNull(),
+    quantity: integer("quantity").notNull(),
+    /** Sale price per unit, in cents. */
+    unitPriceCents: integer("unit_price_cents").notNull(),
+    /** Platform fees and shipping paid, for the whole sale, in cents. */
+    feesCents: integer("fees_cents").notNull().default(0),
+    soldOn: date("sold_on"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("sealed_sale_user_idx").on(t.userId)],
+);
+
+/** Products a user is watching for a good time to buy. */
+export const sealedWatch = pgTable(
+  "sealed_watch",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    productId: integer("product_id").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.productId] })],
+);
+
+/**
+ * Daily market prices for sealed product, recorded by each price refresh
+ * (no free historical source exists). Not user data: shared by everyone.
+ */
+export const sealedPrice = pgTable(
+  "sealed_price",
+  {
+    productId: integer("product_id").notNull(),
+    day: date("day").notNull(),
+    market: numeric("market", { precision: 10, scale: 2 }),
+    low: numeric("low", { precision: 10, scale: 2 }),
+  },
+  (t) => [primaryKey({ columns: [t.productId, t.day] })],
+);

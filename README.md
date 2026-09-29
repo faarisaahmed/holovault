@@ -30,6 +30,12 @@ shares.
 - **Binders** (`/binders`) — plan a binder in 2×2 to 4×4 pages from your collection, the whole Pokédex, a set or
   one Pokémon; sort by Pokédex number, set, name, value or rarity; no rares, one per Pokémon, Pokémon only, new
   page per set / generation. Owned pockets show your card; empty ones show what to look for.
+- **Sealed inventory** (`/sealed`, opt-in from Settings) — for people who buy and sell sealed product. Every
+  booster box, ETB, bundle, pack, blister, tin, collection, UPC, case and display TCGplayer lists; log purchases
+  as lots (quantity, price paid, date), record sales (price, fees), and see value, cost, unrealized and realized
+  profit. A watchlist, a price chart per product with your average cost on it, and plain-rule buy / sell signals
+  from the product's own last 90 days (near its low and steady → buy; near its high and well above your cost →
+  sell), each shown with its reasoning. Off by default, so casual collectors never see it.
 - **Import** (`/import`) — a faster way to add cards you already have listed: a CSV from your own spreadsheet or
   another app. Columns are detected (name, set, number, quantity, condition, printing, grade, price paid,
   TCGplayer product ID) and you see what matched before anything is added.
@@ -62,6 +68,7 @@ Authentication is [Better Auth](https://www.better-auth.com) (`src/lib/server/au
 |---|---|---|
 | Card catalog, prices | SQLite (`data/pokemon.db`) | Rebuilt each deploy by `npm run ingest` — TCGdex + TCGCSV, same pipeline as Ripwise. Not in git. |
 | Accounts, collections, binders | Postgres (`DATABASE_URL`) | Schema in `src/lib/server/schema.ts`, migrations in `drizzle/`. |
+| Sealed price history | Postgres (`sealed_price`) | One row per sealed product per day, recorded by `npm run snapshot` after each ingest. No free historical source exists (TCGCSV's archive is offline), so charts start from the first recorded day and signals need 14 days. |
 | PSA sold prices | Postgres cache | From Ripwise's `/api/psa/:cardId`, a week at a time. |
 
 Locally, with no `DATABASE_URL`, an embedded Postgres ([PGlite](https://pglite.dev)) in `data/userdb` is created
@@ -99,8 +106,9 @@ name so the Render deployment stays connected. The Render service in `render.yam
 4. Optional: email verification and password reset — a [Resend](https://resend.com) key in `RESEND_API_KEY` and a
    verified sender in `EMAIL_FROM`.
 5. Optional: graded prices — `RIPWISE_URL` pointing at the Ripwise deployment.
-6. For daily price updates, add the Render deploy hook as the `RENDER_DEPLOY_HOOK` repository secret;
-   `.github/workflows/refresh-prices.yml` calls it every day.
+6. For daily price updates **and the sealed price history**, add the Render deploy hook as the
+   `RENDER_DEPLOY_HOOK` repository secret; `.github/workflows/refresh-prices.yml` calls it every day, and each
+   rebuild records that day's sealed prices. Without it, prices only update (and history only grows) when you push.
 
 ## Licence
 

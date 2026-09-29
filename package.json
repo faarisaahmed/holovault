@@ -10,7 +10,8 @@
     "ingest": "tsx scripts/ingest/run.ts",
     "db:migrate": "tsx scripts/migrate.ts",
     "test": "tsx --test tests/*.test.ts",
-    "typecheck": "react-router typegen && tsc --noEmit"
+    "typecheck": "react-router typegen && tsc --noEmit",
+    "snapshot": "tsx scripts/snapshot-sealed.ts"
   },
   "type": "module",
   "dependencies": {

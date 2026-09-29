@@ -3,16 +3,19 @@ import type { Route } from "./+types/settings";
 import { CONDITIONS } from "@/lib/valuation";
 import { authFeatures, getAuth, requireUser } from "@/lib/server/auth.server";
 import { getSettings, saveSettings, settingsInput } from "@/lib/server/collection.server";
+import { sealedEnabled, setSealedEnabled } from "@/lib/server/sealed.server";
+import { safeNext } from "@/lib/server/safe-redirect";
 
 export const meta: Route.MetaFunction = () => [{ title: "Settings — Shadowless" }];
 
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await requireUser(request);
   const auth = await getAuth();
-  const [accounts, sessions, settings] = await Promise.all([
+  const [accounts, sessions, settings, sealed] = await Promise.all([
     auth.api.listUserAccounts({ headers: request.headers }),
     auth.api.listSessions({ headers: request.headers }),
     getSettings(user.id),
+    sealedEnabled(user.id),
   ]);
   const providers = accounts.map((a) => a.providerId);
   return {
@@ -21,6 +24,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     hasGoogle: providers.includes("google"),
     sessionCount: sessions.length,
     settings,
+    sealed,
     features: authFeatures(),
   };
 }
@@ -92,6 +96,12 @@ export async function action({ request }: Route.ActionArgs): Promise<Response | 
     case "sign-out": {
       const res = await auth.api.signOut({ headers, asResponse: true });
       return redirectWith(res, "/");
+    }
+    case "sealed": {
+      await setSealedEnabled(user.id, form.get("on") === "1");
+      const next = form.get("next");
+      if (next) throw redirect(safeNext(String(next), "/settings"));
+      return { section: "sealed", ok: form.get("on") === "1" ? "Sealed inventory is on." : "Sealed inventory is off. Nothing you logged was deleted." };
     }
     case "preferences": {
       const parsed = settingsInput.safeParse(Object.fromEntries(form));
@@ -230,6 +240,21 @@ export default function Settings({ loaderData: d, actionData }: Route.ComponentP
           </button>
         </Form>
         {note("preferences")}
+      </Section>
+
+      <Section title="Sealed inventory">
+        <p className="text-sm text-ink-300">
+          For buying and selling sealed product: log boxes, ETBs, tins and cases with what you paid, record sales, and
+          watch prices with charts and buy / sell signals. Adds a Sealed tab; off by default.
+        </p>
+        <Form method="post" className="mt-3">
+          <input type="hidden" name="intent" value="sealed" />
+          <input type="hidden" name="on" value={d.sealed ? "0" : "1"} />
+          <button disabled={busy} className={`rounded-md px-3 py-1.5 text-sm ${d.sealed ? "border border-ink-700 hover:border-accent" : "bg-accent font-semibold text-black"}`}>
+            {d.sealed ? "Turn off" : "Turn on sealed inventory"}
+          </button>
+        </Form>
+        {note("sealed")}
       </Section>
 
       <Section title="Your data">

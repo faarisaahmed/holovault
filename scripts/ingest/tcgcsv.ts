@@ -82,6 +82,38 @@ const SEALED_RULES: { kind: SealedKind; test: RegExp }[] = [
 const SEALED_REJECT =
   /\bcase\b|\bcode card\b|\bblister\b|\bdisplay\b|\bcarton\b|\bcheck ?lane\b|\bbuild ?& ?battle\b|\bpokemon center\b|\bset of \d+\b|\bhalf booster box\b|\bmini booster pack\b|\bsurprise box\b/i;
 
+/**
+ * Every sealed product gets a category for the sealed inventory, including
+ * the cases, displays and blisters that classifySealed deliberately skips.
+ * Order matters: "Booster Box Case" is a case, "Elite Trainer Box" an ETB.
+ */
+const CATEGORY_RULES: [string, RegExp][] = [
+  ["case", /\bcases?\b/i],
+  ["display", /\bdisplays?\b|\bcartons?\b/i],
+  ["upc", /\bultra[- ]premium collections?\b|\bupc\b/i],
+  ["etb", /\belite trainer box(es)?\b/i],
+  ["box", /\bbooster box(es)?\b|\benhanced booster\b/i],
+  ["bundle", /\bbooster bundles?\b|\bbooster pack art bundles?\b/i],
+  ["kit", /\bbuild ?& ?battle\b|\bprerelease\b|\bkit\b/i],
+  ["blister", /\bblisters?\b|\bcheck ?lanes?\b|\b\d[- ]pack\b/i],
+  ["tin", /\btins?\b/i],
+  ["deck", /\bdecks?\b|\bbattle academy\b/i],
+  ["pack", /\bbooster packs?\b|\bmini booster\b|\bboosters?\b|\bposter packs?\b|\bfun packs?\b/i],
+  ["collection", /\bcollections?\b|\bbox(es)?\b|\bpremium\b|\bset of \d+\b|\bbinders?\b|\bchests?\b|\bbundles?\b/i],
+];
+
+/**
+ * The sealed-inventory category for a product, or null when it isn't sealed
+ * product: code cards, and single cards TCGplayer lists without a number
+ * (they still carry a rarity), are left out.
+ */
+export function sealedCategory(p: Pick<CsvProduct, "name" | "extendedData">): string | null {
+  if (/\bcode card\b/i.test(p.name)) return null;
+  if (extended(p as CsvProduct).Rarity) return null;
+  for (const [cat, re] of CATEGORY_RULES) if (re.test(p.name)) return cat;
+  return null;
+}
+
 /** Packs contained in each sealed product kind. Japanese boxes hold 30. */
 const PACK_COUNTS: Record<"en" | "ja", Partial<Record<SealedKind, number>>> = {
   en: { box: 36, etb: 9, bundle: 6, pack: 1 },

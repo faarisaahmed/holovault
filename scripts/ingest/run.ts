@@ -254,6 +254,15 @@ async function ingestRegion(region: Region) {
       set_id=excluded.set_id, kind=excluded.kind, updated_at=excluded.updated_at
   `);
 
+  const insertCatalog = db.prepare(`
+    INSERT INTO sealed_catalog (product_id, set_id, region, category, name, image, url, market, low, updated_at)
+    VALUES (@pid, @set_id, @region, @category, @name, @image, @url, @market, @low, @updated_at)
+    ON CONFLICT(product_id) DO UPDATE SET
+      set_id=excluded.set_id, category=excluded.category, name=excluded.name, image=excluded.image,
+      url=excluded.url, market=excluded.market, low=excluded.low, updated_at=excluded.updated_at
+  `);
+  let catalogCount = 0;
+
   const now = new Date().toISOString();
   const seenCards = new Set<string>();
   let cardCount = 0;
@@ -373,10 +382,26 @@ async function ingestRegion(region: Region) {
       for (const g of ALSO_STANDALONE.has(s.id) ? [] : s.groups) {
         for (const p of products.get(g.groupId) ?? []) {
           if (csv.isSingle(p)) continue;
-          const cls = csv.classifySealed(region, p.name);
-          if (!cls) continue;
           const rows = pricesByProduct.get(p.productId) ?? [];
           const row = rows.find((r) => r.marketPrice != null) ?? rows[0];
+          const category = csv.sealedCategory(p);
+          if (category) {
+            insertCatalog.run({
+              pid: p.productId,
+              set_id: s.id,
+              region,
+              category,
+              name: p.name,
+              image: p.imageUrl,
+              url: p.url,
+              market: row?.marketPrice ?? null,
+              low: row?.lowPrice ?? null,
+              updated_at: now,
+            });
+            catalogCount++;
+          }
+          const cls = csv.classifySealed(region, p.name);
+          if (!cls) continue;
           if (!row) continue;
           insertSealed.run({
             set_id: s.id,
@@ -402,7 +427,7 @@ async function ingestRegion(region: Region) {
   pruneStaleCards(region, seenCards);
   await markReprints(region);
 
-  console.log(`  sets: ${sets.length}  cards: ${cardCount}  priced: ${pricedCount} (${Math.round((pricedCount / cardCount) * 100)}%)  sealed: ${sealedCount}`);
+  console.log(`  sets: ${sets.length}  cards: ${cardCount}  priced: ${pricedCount} (${Math.round((pricedCount / cardCount) * 100)}%)  sealed: ${sealedCount}  sealed catalog: ${catalogCount}`);
   if (missingRarity.length) {
     console.log(`  cards with no rarity: ${missingRarity.length} (e.g. ${missingRarity.slice(0, 5).join(", ")})`);
   }

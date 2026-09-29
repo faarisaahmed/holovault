@@ -7,8 +7,9 @@ services:
     runtime: node
     plan: free
     # --include=dev: NODE_ENV=production (needed at runtime for secure
-    # cookies) would otherwise make npm skip the build tools.
-    buildCommand: npm ci --include=dev && npm run ingest && npm run build
+    # cookies) would otherwise make npm skip the build tools. The snapshot
+    # records today's sealed prices into Postgres (history for the charts).
+    buildCommand: npm ci --include=dev && npm run ingest && npm run db:migrate && npm run snapshot && npm run build
     startCommand: npm run db:migrate && npm start
     healthCheckPath: /login
     envVars:

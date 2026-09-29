@@ -18,11 +18,14 @@ import { THEME_INIT_SCRIPT } from "@/lib/themes";
 import { getSessionUser } from "@/lib/server/auth.server";
 import { lastIngest } from "@/lib/server/catalog.server";
 import { ripwiseUrl } from "@/lib/server/graded.server";
+import { sealedEnabled } from "@/lib/server/sealed.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await getSessionUser(request);
   return {
     user: user ? { name: user.name, email: user.email } : null,
+    // The sealed tab only shows for accounts that switched it on.
+    sealed: user ? await sealedEnabled(user.id) : false,
     ingested: lastIngest(),
     ripwise: ripwiseUrl() ?? null,
   };
@@ -102,7 +105,8 @@ const NAV = [
 ];
 
 export default function App({ loaderData }: Route.ComponentProps) {
-  const { user, ripwise } = loaderData;
+  const { user, ripwise, sealed } = loaderData;
+  const nav = sealed ? [...NAV, { to: "/sealed", label: "Sealed" }] : NAV;
   // Pages like sign-in fill the whole screen with their own layout.
   const bare = useMatches().some((m) => (m.handle as { bare?: boolean } | undefined)?.bare);
   if (bare) return <Outlet />;
@@ -116,7 +120,7 @@ export default function App({ loaderData }: Route.ComponentProps) {
           </Link>
           {user ? (
             <nav className="-my-1 flex min-w-0 flex-1 items-center gap-4 overflow-x-auto whitespace-nowrap py-1 text-sm text-ink-300">
-              {NAV.map((n) => (
+              {nav.map((n) => (
                 <NavLink
                   key={n.to}
                   to={n.to}
