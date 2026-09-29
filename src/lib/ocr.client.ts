@@ -40,7 +40,9 @@ async function toBitmap(file: Blob): Promise<ImageBitmap> {
   return createImageBitmap(file, { imageOrientation: "from-image" });
 }
 
-function draw(img: ImageBitmap, sx: number, sy: number, sw: number, sh: number, scale: number, boost: boolean) {
+type Source = ImageBitmap | HTMLCanvasElement;
+
+function draw(img: Source, sx: number, sy: number, sw: number, sh: number, scale: number, boost: boolean) {
   const c = document.createElement("canvas");
   c.width = Math.round(sw * scale);
   c.height = Math.round(sh * scale);
@@ -51,25 +53,39 @@ function draw(img: ImageBitmap, sx: number, sy: number, sw: number, sh: number, 
 }
 
 /**
- * Reads a card photo: the whole card for the name, then the bottom strip
- * enlarged, where the tiny collector number ("199/165") lives.
+ * Reads a card image: the whole card for the name, the title strip enlarged,
+ * then the bottom strip enlarged, where the tiny collector number ("199/165")
+ * lives.
  */
-export async function readCard(file: Blob, onProgress?: (p: number) => void): Promise<string> {
+async function readImage(img: Source, onProgress?: (p: number) => void): Promise<string> {
   const w = await getWorker(onProgress);
-  const img = await toBitmap(file);
   const long = Math.max(img.width, img.height);
   const whole = draw(img, 0, 0, img.width, img.height, Math.min(1, 1600 / long), false);
   const stripH = img.height * 0.3;
   const stripScale = Math.min(2.5, 2400 / img.width);
   const bottom = draw(img, 0, img.height - stripH, img.width, stripH, stripScale, true);
   const top = draw(img, 0, 0, img.width, img.height * 0.16, Math.min(2, 2000 / img.width), true);
-  img.close();
   const parts: string[] = [];
   for (const canvas of [whole, top, bottom]) {
     const { data } = await w.recognize(canvas);
     parts.push(data.text);
   }
   return parts.join("\n");
+}
+
+/** Reads a card photo from a file. */
+export async function readCard(file: Blob, onProgress?: (p: number) => void): Promise<string> {
+  const img = await toBitmap(file);
+  try {
+    return await readImage(img, onProgress);
+  } finally {
+    img.close();
+  }
+}
+
+/** Reads a canvas already cropped to exactly one card (the live scanner's frame). */
+export function readFrame(card: HTMLCanvasElement): Promise<string> {
+  return readImage(card);
 }
 
 /*
@@ -118,15 +134,19 @@ export async function photoPrint(file: Blob): Promise<Float32Array> {
   return h;
 }
 
+/** A canvas cropped to exactly one card: its artwork window, as on catalog images. */
+export function framePrint(card: HTMLCanvasElement): Float32Array {
+  return histogram(card, card.width * 0.1, card.height * 0.11, card.width * 0.8, card.height * 0.38);
+}
+
 const prints = new Map<string, Promise<Float32Array | null>>();
 
-/** The artwork window of a catalog card image (needs a CORS-enabled host). */
+/** The artwork window of a catalog card image, fetched through /api/card-thumb. */
 export function cardPrint(url: string): Promise<Float32Array | null> {
   let p = prints.get(url);
   if (!p) {
     p = new Promise((resolve) => {
       const img = new Image();
-      img.crossOrigin = "anonymous";
       img.onload = () => {
         try {
           const w = img.naturalWidth;
@@ -137,11 +157,27 @@ export function cardPrint(url: string): Promise<Float32Array | null> {
         }
       };
       img.onerror = () => resolve(null);
-      img.src = url;
+      img.src = `/api/card-thumb?url=${encodeURIComponent(url)}`;
     });
     prints.set(url, p);
   }
   return p;
+}
+
+/**
+ * Re-ranks candidates by how much each one's artwork looks like the photo.
+ * A card whose image can't be read scores the average, not zero, so a missing
+ * picture never buries the right card.
+ */
+export async function rankByLooks<T extends { image: string | null; score: number }>(mine: Float32Array, list: T[], weight = 25): Promise<T[]> {
+  const looks = await Promise.all(list.map(async (c) => (c.image ? await cardPrint(c.image) : null)));
+  const known = looks.filter((p): p is Float32Array => !!p).map((p) => likeness(mine, p));
+  const avg = known.length ? known.reduce((a, b) => a + b, 0) / known.length : 0;
+  let k = 0;
+  return list
+    .map((c, i) => ({ c, v: c.score + (looks[i] ? known[k++] : avg) * weight }))
+    .sort((a, b) => b.v - a.v)
+    .map((o) => o.c);
 }
 
 /** 0 (nothing alike) to 1 (same colours). */

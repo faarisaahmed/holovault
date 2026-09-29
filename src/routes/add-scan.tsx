@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useFetcher } from "react-router";
 import type { Route } from "./+types/add-scan";
 import { finishShort } from "@/components/finish";
+import { LiveScanner } from "@/components/live-scanner";
 import { usd } from "@/lib/format";
-import { cardPrint, likeness, photoPrint, preloadOcr, readCard } from "@/lib/ocr.client";
+import { photoPrint, preloadOcr, rankByLooks, readCard } from "@/lib/ocr.client";
 import { requireUser } from "@/lib/server/auth.server";
 import { handleCardAction, type CardActionResult } from "@/lib/server/card-actions.server";
 import { finishPrices, finishesFor } from "@/lib/server/catalog.server";
@@ -72,6 +73,7 @@ export default function ScanCards({ loaderData }: Route.ComponentProps) {
   const [region, setRegion] = useState<Region>(loaderData.region as Region);
   const [shots, setShots] = useState<Shot[]>([]);
   const [engine, setEngine] = useState<number | null>(null);
+  const [live, setLive] = useState(false);
   const next = useRef(1);
   const camera = useRef<HTMLInputElement>(null);
   const library = useRef<HTMLInputElement>(null);
@@ -112,7 +114,10 @@ export default function ScanCards({ loaderData }: Route.ComponentProps) {
 
       <div className="mb-5 rounded-xl border border-ink-800 bg-ink-900 p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => camera.current?.click()} className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-black">
+          <button onClick={() => setLive(true)} className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-black">
+            Scan with live camera
+          </button>
+          <button onClick={() => camera.current?.click()} className="rounded-md border border-ink-700 px-4 py-2 text-sm text-ink-200 hover:border-accent">
             Take a photo
           </button>
           <button onClick={() => library.current?.click()} className="rounded-md border border-ink-700 px-4 py-2 text-sm text-ink-200 hover:border-accent">
@@ -129,14 +134,16 @@ export default function ScanCards({ loaderData }: Route.ComponentProps) {
           <input ref={library} type="file" accept="image/*" multiple hidden onChange={(e) => (addFiles(e.target.files), (e.target.value = ""))} />
         </div>
         <ul className="mt-3 grid gap-1 text-[11px] text-ink-500 sm:grid-cols-3">
-          <li>• Card flat, filling most of the photo, upright.</li>
-          <li>• Good light, no glare across the bottom corner.</li>
-          <li>• You can pick a batch of photos at once.</li>
+          <li>• Live camera: line one card up in the frame, tap Add, move to the next. Great for a binder page.</li>
+          <li>• Good light, no glare across the name or the bottom corner.</li>
+          <li>• Photos: fill most of the picture with the card. You can pick a batch at once.</li>
         </ul>
         {engine != null && engine < 1 ? (
           <p className="mt-2 text-[11px] text-ink-500">Getting the scanner ready… {Math.round(engine * 100)}%</p>
         ) : null}
       </div>
+
+      {live ? <LiveScanner region={region} defaultCondition={loaderData.defaultCondition} onClose={() => setLive(false)} /> : null}
 
       {shots.length === 0 ? (
         <p className="rounded-xl border border-dashed border-ink-700 px-4 py-14 text-center text-sm text-ink-400">
@@ -203,14 +210,8 @@ function ScanRow({ shot, region, defaultCondition, onRemove }: { shot: Shot; reg
     (async () => {
       const mine = await photoPrint(shot.file).catch(() => null);
       if (!mine) return;
-      const looks = await Promise.all(
-        list.map(async (c) => {
-          const print = c.image ? await cardPrint(c.image.replace(/\/high\.(webp|png|jpg)$/, "/low.webp")) : null;
-          return print ? likeness(mine, print) : 0;
-        }),
-      );
-      const order = list.map((c, i) => ({ c, v: c.score + looks[i] * 25 })).sort((a, b) => b.v - a.v);
-      if (live) setRanked({ for: list, list: order.map((o) => o.c) });
+      const ordered = await rankByLooks(mine, list);
+      if (live) setRanked({ for: list, list: ordered });
     })();
     return () => {
       live = false;

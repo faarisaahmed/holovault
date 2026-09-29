@@ -61,7 +61,11 @@ const MECHANICS: [RegExp, string][] = [
  * removed. The first one is usually the title; "Evolves from Charmeleon" is
  * dropped so the evolution line can't win.
  */
-function namesIn(text: string, clues: ScanClues, region: Region): { title: string | null; others: string[]; fuzzy: string[] } {
+function namesIn(
+  text: string,
+  clues: ScanClues,
+  region: Region,
+): { title: string | null; longer: string[]; others: string[]; fuzzy: string[] } {
   const idx = nameIndex(region);
   const norm = normalizeName(text).replace(/evolves from \S+( \S+)?/g, " ");
   const hay = ` ${norm} `;
@@ -102,7 +106,10 @@ function namesIn(text: string, clues: ScanClues, region: Region): { title: strin
       if (fuzzy.length > 40) break;
     }
   }
-  return { title, others: names.slice(1, 4), fuzzy: [...new Set(fuzzy)] };
+  // Small print is often lost: "Rocket's" above "Suicune ex", "Dark" before
+  // "Charizard". Longer names ending in the title are candidates too.
+  const longer = title ? idx.names.filter((n) => n !== title && n.endsWith(` ${title}`)).slice(0, 12) : [];
+  return { title, longer, others: names.slice(1, 4), fuzzy: [...new Set(fuzzy)] };
 }
 
 /** "TG1" also as "TG01" and "TG001": sets pad gallery numbers differently. */
@@ -121,7 +128,7 @@ export interface ScanMatch {
 
 export function matchScan(text: string, region: Region, limit = 8): { matches: ScanMatch[]; clues: ScanClues; guess: string | null } {
   const clues = parseScanText(text);
-  const { title, others, fuzzy } = namesIn(text, clues, region);
+  const { title, longer, others, fuzzy } = namesIn(text, clues, region);
   const db = getDb();
   const scores = new Map<string, { score: number; why: string[] }>();
   const bump = (id: string, pts: number, why: string) => {
@@ -174,6 +181,7 @@ export function matchScan(text: string, region: Region, limit = 8): { matches: S
     }
   };
   byName(title ? [title] : [], 30, "name");
+  byName(longer, 22, "name");
   byName(others, 6, "name");
   byName(fuzzy, 12, "similar name");
 

@@ -13,7 +13,9 @@ shares.
   `sv03.5 199`). One-click buttons add a copy in each printing the card exists in (Normal, Holo, Reverse, 1st
   Edition…) in your default condition; click a card for condition (Mint → Damaged), grading company and grade,
   cert number, quantity and price paid. Every add can be undone.
-- **Scan cards** (`/add/scan`) — take a photo (or pick a batch) and tap the match. Text is read on the device
+- **Scan cards** (`/add/scan`) — **live camera** for binders: only the card inside the on-screen outline is
+  read, each match pops up to confirm with one tap, and after an add it waits until the view changes (you moved
+  to the next pocket) before reading again. Or take a photo (or pick a batch) and tap the match. Text is read on the device
   with Tesseract (served from `/ocr`, copied in by `npm run ocr`); the name and collector number (`199/165`)
   find the card, and the photo's colours pick between printings of the same name. Photos are never uploaded.
 - **Collection** (`/collection`) — every copy with its value, filterable and sortable, editable in place,

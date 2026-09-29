@@ -20,4 +20,5 @@ export default [
   route("settings", "routes/settings.tsx"),
   route("export/:format", "routes/export.tsx"),
   route("api/auth/*", "routes/api.auth.tsx"),
+  route("api/card-thumb", "routes/api.card-thumb.tsx"),
 ] satisfies RouteConfig;
