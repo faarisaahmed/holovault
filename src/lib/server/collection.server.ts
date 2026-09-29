@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { CONDITIONS, GRADERS, cents, unitValue, type ValueSource } from "@/lib/valuation";
 import { cardsByIds, finishPrices, type CatalogCard } from "./catalog.server";
@@ -112,6 +112,56 @@ export async function updateItem(userId: string, id: string, input: ItemInput) {
 export async function removeItem(userId: string, id: string) {
   const db = await getUserDb();
   await db.delete(collectionItem).where(and(eq(collectionItem.id, id), eq(collectionItem.userId, userId)));
+}
+
+/** What a removed copy was, in the add form's shape, so Undo can put it back. */
+export type RemovedCopy = z.input<typeof itemInput>;
+
+/**
+ * Removes copies and returns what was removed. "one" takes a single copy off
+ * each row (the row goes at zero); "all" removes the rows outright.
+ */
+export async function takeItems(userId: string, ids: string[], mode: "one" | "all"): Promise<RemovedCopy[]> {
+  if (!ids.length) return [];
+  const db = await getUserDb();
+  const rows = await db
+    .select()
+    .from(collectionItem)
+    .where(and(eq(collectionItem.userId, userId), inArray(collectionItem.id, ids.slice(0, 1000))));
+  const removed: RemovedCopy[] = [];
+  for (const r of rows) {
+    const quantity = mode === "one" ? 1 : r.quantity;
+    removed.push({
+      cardId: r.cardId,
+      finish: r.finish,
+      condition: r.condition,
+      grader: r.grader as RemovedCopy["grader"],
+      grade: r.grade != null ? Number(r.grade) : null,
+      certNumber: r.certNumber,
+      quantity,
+      purchase: r.purchaseCents != null ? (r.purchaseCents / 100).toFixed(2) : null,
+      valueOverride: r.valueOverrideCents != null ? (r.valueOverrideCents / 100).toFixed(2) : null,
+      acquiredOn: r.acquiredOn,
+      notes: r.notes,
+    });
+    if (mode === "one") await decrementItem(userId, r.id, 1);
+    else await removeItem(userId, r.id);
+  }
+  return removed;
+}
+
+/** Puts removed copies back (Undo). Input comes from the client, so it's validated like any add. */
+export async function restoreItems(userId: string, copies: unknown): Promise<number> {
+  const list = z.array(z.unknown()).max(1000).safeParse(copies);
+  if (!list.success) return 0;
+  let n = 0;
+  for (const c of list.data) {
+    const parsed = itemInput.safeParse(c);
+    if (!parsed.success) continue;
+    await addItem(userId, parsed.data);
+    n++;
+  }
+  return n;
 }
 
 export async function rawItems(userId: string) {

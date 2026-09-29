@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useFetcher } from "react-router";
 import type { Route } from "./+types/add-scan";
+import { ConditionPicker, useStickyCondition } from "@/components/condition-picker";
 import { finishShort } from "@/components/finish";
 import { LiveScanner } from "@/components/live-scanner";
 import { usd } from "@/lib/format";
@@ -74,6 +75,7 @@ export default function ScanCards({ loaderData }: Route.ComponentProps) {
   const [shots, setShots] = useState<Shot[]>([]);
   const [engine, setEngine] = useState<number | null>(null);
   const [live, setLive] = useState(false);
+  const [condition, setCondition] = useStickyCondition(loaderData.defaultCondition);
   const next = useRef(1);
   const camera = useRef<HTMLInputElement>(null);
   const library = useRef<HTMLInputElement>(null);
@@ -133,6 +135,9 @@ export default function ScanCards({ loaderData }: Route.ComponentProps) {
           <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={(e) => (addFiles(e.target.files), (e.target.value = ""))} />
           <input ref={library} type="file" accept="image/*" multiple hidden onChange={(e) => (addFiles(e.target.files), (e.target.value = ""))} />
         </div>
+        <div className="mt-3">
+          <ConditionPicker value={condition} onChange={setCondition} label="Adding as" />
+        </div>
         <ul className="mt-3 grid gap-1 text-[11px] text-ink-500 sm:grid-cols-3">
           <li>• Live camera: line one card up in the frame, tap Add, move to the next. Great for a binder page.</li>
           <li>• Good light, no glare across the name or the bottom corner.</li>
@@ -143,7 +148,7 @@ export default function ScanCards({ loaderData }: Route.ComponentProps) {
         ) : null}
       </div>
 
-      {live ? <LiveScanner region={region} defaultCondition={loaderData.defaultCondition} onClose={() => setLive(false)} /> : null}
+      {live ? <LiveScanner region={region} defaultCondition={condition} onClose={() => setLive(false)} /> : null}
 
       {shots.length === 0 ? (
         <p className="rounded-xl border border-dashed border-ink-700 px-4 py-14 text-center text-sm text-ink-400">
@@ -152,7 +157,7 @@ export default function ScanCards({ loaderData }: Route.ComponentProps) {
       ) : (
         <ul className="space-y-3">
           {shots.map((s) => (
-            <ScanRow key={s.key} shot={s} region={region} defaultCondition={loaderData.defaultCondition} onRemove={() => setShots((all) => all.filter((x) => x.key !== s.key))} />
+            <ScanRow key={s.key} shot={s} region={region} condition={condition} onRemove={() => setShots((all) => all.filter((x) => x.key !== s.key))} />
           ))}
         </ul>
       )}
@@ -165,7 +170,7 @@ type Status = "queued" | "reading" | "matching" | "done" | "failed";
 /** Scans run one at a time; this chains them. */
 let queue: Promise<unknown> = Promise.resolve();
 
-function ScanRow({ shot, region, defaultCondition, onRemove }: { shot: Shot; region: Region; defaultCondition: string; onRemove: () => void }) {
+function ScanRow({ shot, region, condition, onRemove }: { shot: Shot; region: Region; condition: string; onRemove: () => void }) {
   const match = useFetcher<typeof action>();
   const [status, setStatus] = useState<Status>("queued");
   const [text, setText] = useState("");
@@ -256,7 +261,7 @@ function ScanRow({ shot, region, defaultCondition, onRemove }: { shot: Shot; reg
         <>
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {shown.map((c, i) => (
-              <CandidateCard key={c.id} c={c} best={i === 0 && candidates.length > 1} defaultCondition={defaultCondition} onAdded={setAdded} />
+              <CandidateCard key={c.id} c={c} best={i === 0 && candidates.length > 1} condition={condition} onAdded={setAdded} />
             ))}
           </div>
           {candidates.length > shown.length ? (
@@ -270,7 +275,7 @@ function ScanRow({ shot, region, defaultCondition, onRemove }: { shot: Shot; reg
   );
 }
 
-function CandidateCard({ c, best, defaultCondition, onAdded }: { c: Candidate; best: boolean; defaultCondition: string; onAdded: (label: string) => void }) {
+function CandidateCard({ c, best, condition, onAdded }: { c: Candidate; best: boolean; condition: string; onAdded: (label: string) => void }) {
   const add = useFetcher<CardActionResult>();
   useEffect(() => {
     if (add.state === "idle" && add.data && "added" in add.data) {
@@ -301,7 +306,7 @@ function CandidateCard({ c, best, defaultCondition, onAdded }: { c: Candidate; b
             <input type="hidden" name="intent" value="add" />
             <input type="hidden" name="cardId" value={c.id} />
             <input type="hidden" name="finish" value={f.name} />
-            <input type="hidden" name="condition" value={defaultCondition} />
+            <input type="hidden" name="condition" value={condition} />
             <button disabled={add.state !== "idle"} className="rounded border border-ink-700 bg-ink-850 px-2 py-1 text-[11px] text-ink-200 hover:border-accent hover:text-accent disabled:opacity-50">
               + {finishShort(f.name)} <span className="text-ink-500">{usd(f.price, { compact: true })}</span>
             </button>

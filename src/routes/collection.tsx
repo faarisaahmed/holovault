@@ -1,12 +1,22 @@
 import { useState } from "react";
-import { Form, Link, useNavigation } from "react-router";
+import { useCallback, useEffect } from "react";
+import { Form, Link, useFetcher, useNavigation } from "react-router";
 import type { Route } from "./+types/collection";
 import { Select, SearchBox, Toggle } from "@/components/controls";
 import { CopyBadge, finishShort } from "@/components/finish";
 import { usd } from "@/lib/format";
 import { requireUser } from "@/lib/server/auth.server";
 import { finishPrices, finishesFor, getCard } from "@/lib/server/catalog.server";
-import { itemInput, removeItem, totals, updateItem, valuedCollection, type OwnedItem } from "@/lib/server/collection.server";
+import {
+  itemInput,
+  restoreItems,
+  takeItems,
+  totals,
+  updateItem,
+  valuedCollection,
+  type OwnedItem,
+  type RemovedCopy,
+} from "@/lib/server/collection.server";
 import { CONDITIONS, GRADERS, GRADES } from "@/lib/valuation";
 
 export const meta: Route.MetaFunction = () => [{ title: "Collection — Shadowless" }];
@@ -63,9 +73,19 @@ export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
   const intent = String(form.get("intent"));
   const id = String(form.get("id") ?? "");
-  if (intent === "delete") {
-    await removeItem(user.id, id);
-    return { ok: true };
+  if (intent === "remove") {
+    const ids = form.getAll("id").map(String).filter(Boolean);
+    const removed = await takeItems(user.id, ids, form.get("mode") === "one" ? "one" : "all");
+    return { removed, at: Date.now() };
+  }
+  if (intent === "restore") {
+    let copies: unknown = null;
+    try {
+      copies = JSON.parse(String(form.get("copies") ?? "null"));
+    } catch {
+      return { error: "Couldn't undo that." };
+    }
+    return { restored: await restoreItems(user.id, copies) };
   }
   if (intent === "update") {
     const parsed = itemInput.safeParse(Object.fromEntries([...form.entries()].filter(([, v]) => v !== "")));
@@ -83,12 +103,41 @@ export async function action({ request }: Route.ActionArgs) {
 export default function Collection({ loaderData, actionData }: Route.ComponentProps) {
   const { items, all, shown, q, kind, sort, view, finishOptions } = loaderData;
   const [editing, setEditing] = useState<string | null>(null);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const remover = useFetcher<typeof action>();
+  const busy = remover.state !== "idle";
+
+  const remove = (ids: string[], mode: "one" | "all") => {
+    const form = new FormData();
+    form.set("intent", "remove");
+    form.set("mode", mode);
+    ids.forEach((id) => form.append("id", id));
+    void remover.submit(form, { method: "post" });
+    setEditing(null);
+  };
+  const toggle = (id: string) =>
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const stopSelecting = () => {
+    setSelecting(false);
+    setSelected(new Set());
+  };
+  // Tapping a card edits it, or picks it while selecting.
+  const open = (id: string) => (selecting ? toggle(id) : setEditing(id));
+  const removedData = remover.data?.removed && remover.data.at ? { removed: remover.data.removed, at: remover.data.at } : null;
+  const selectedCopies = items.filter((i) => selected.has(i.id)).reduce((n, i) => n + i.quantity, 0);
   const editor = (i: OwnedItem) => (
     <EditRow
       item={i}
       finishes={finishOptions[i.cardId] ?? [i.finish]}
       error={actionData && "id" in actionData && actionData.id === i.id ? actionData.error : undefined}
       onClose={() => setEditing(null)}
+      onRemove={() => remove([i.id], "all")}
     />
   );
 
@@ -125,7 +174,15 @@ export default function Collection({ loaderData, actionData }: Route.ComponentPr
           ]}
         />
         <Select name="sort" label="Sort" value={sort} options={Object.entries(SORTS).map(([value, label]) => ({ value, label }))} />
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {items.length ? (
+            <button
+              onClick={() => (selecting ? stopSelecting() : setSelecting(true))}
+              className={`rounded-md border px-2.5 py-1.5 text-xs ${selecting ? "border-accent text-accent" : "border-ink-700 text-ink-300 hover:border-ink-600"}`}
+            >
+              {selecting ? "Cancel" : "Select"}
+            </button>
+          ) : null}
           <Toggle
             name="view"
             value={view}
@@ -149,8 +206,13 @@ export default function Collection({ loaderData, actionData }: Route.ComponentPr
                 {editor(i)}
               </div>
             ) : (
-              <button key={i.id} onClick={() => setEditing(i.id)} className="group flex flex-col text-left" title="Edit">
-                <span className="relative block overflow-hidden rounded-lg bg-ink-850 ring-1 ring-ink-800 transition group-hover:-translate-y-0.5 group-hover:ring-accent">
+              <button key={i.id} onClick={() => open(i.id)} className="group flex flex-col text-left" title={selecting ? "Select" : "Edit"}>
+                <span
+                  className={`relative block overflow-hidden rounded-lg bg-ink-850 ring-1 transition group-hover:-translate-y-0.5 group-hover:ring-accent ${
+                    selected.has(i.id) ? "ring-2 ring-accent" : "ring-ink-800"
+                  }`}
+                >
+                  {selecting ? <Check on={selected.has(i.id)} className="absolute left-1 top-1 z-10" /> : null}
                   {i.card?.image ? (
                     <img src={i.card.image} alt={i.card.name} loading="lazy" className="aspect-[245/342] w-full object-cover" />
                   ) : (
@@ -182,7 +244,9 @@ export default function Collection({ loaderData, actionData }: Route.ComponentPr
                 {editing === i.id ? (
                   <div className="bg-ink-850 p-3">{editor(i)}</div>
                 ) : (
-                  <button onClick={() => setEditing(i.id)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left active:bg-ink-850">
+                  <div className="flex items-center">
+                  <button onClick={() => open(i.id)} className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-3 text-left active:bg-ink-850">
+                    {selecting ? <Check on={selected.has(i.id)} /> : null}
                     {i.card?.image ? <img src={i.card.image} alt="" loading="lazy" className="h-14 w-auto shrink-0 rounded-sm ring-1 ring-ink-700" /> : null}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">
@@ -203,6 +267,8 @@ export default function Collection({ loaderData, actionData }: Route.ComponentPr
                       ) : null}
                     </span>
                   </button>
+                  {!selecting ? <RemoveOne quantity={i.quantity} disabled={busy} onClick={() => remove([i.id], "one")} /> : null}
+                  </div>
                 )}
               </li>
             ))}
@@ -230,9 +296,14 @@ export default function Collection({ loaderData, actionData }: Route.ComponentPr
                       </td>
                     </tr>
                   ) : (
-                    <tr key={i.id} onClick={() => setEditing(i.id)} className="cursor-pointer border-b border-ink-850 last:border-0 hover:bg-ink-850">
+                    <tr
+                      key={i.id}
+                      onClick={() => open(i.id)}
+                      className={`cursor-pointer border-b border-ink-850 last:border-0 hover:bg-ink-850 ${selected.has(i.id) ? "bg-accent/5" : ""}`}
+                    >
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2.5">
+                          {selecting ? <Check on={selected.has(i.id)} /> : null}
                           {i.card?.image ? <img src={i.card.image} alt="" loading="lazy" className="h-12 w-auto rounded-sm ring-1 ring-ink-700" /> : null}
                           <div className="min-w-0">
                             <div className="truncate font-medium">{i.card?.name ?? i.cardId}</div>
@@ -256,7 +327,12 @@ export default function Collection({ loaderData, actionData }: Route.ComponentPr
                       </td>
                       <td className="tnum px-3 py-2 text-right text-xs text-ink-400">{i.purchaseCents != null ? usd(i.purchaseCents / 100) : "—"}</td>
                       <td className="px-3 py-2 text-right">
-                        <span className="text-xs text-ink-400 underline">Edit</span>
+                        {selecting ? null : (
+                          <span className="flex items-center justify-end gap-2">
+                            <span className="text-xs text-ink-400 underline">Edit</span>
+                            <RemoveOne quantity={i.quantity} disabled={busy} onClick={() => remove([i.id], "one")} />
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ),
@@ -266,6 +342,27 @@ export default function Collection({ loaderData, actionData }: Route.ComponentPr
           </div>
         </>
       )}
+      {selecting ? (
+        <div className="fixed inset-x-0 bottom-16 z-40 mx-auto flex w-[min(34rem,calc(100%-1.5rem))] items-center gap-2 rounded-xl border border-ink-700 bg-ink-850 px-3 py-2.5 text-sm shadow-2xl md:bottom-4">
+          <span className="text-ink-200">
+            {selected.size ? `${selected.size} selected${selectedCopies !== selected.size ? ` (${selectedCopies} cards)` : ""}` : "Tap cards to select"}
+          </span>
+          <button onClick={() => setSelected(new Set(items.map((i) => i.id)))} className="text-xs text-ink-400 underline">
+            All {items.length}
+          </button>
+          <button
+            disabled={!selected.size || busy}
+            onClick={() => {
+              remove([...selected], "all");
+              stopSelecting();
+            }}
+            className="ml-auto rounded-md bg-rose-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+          >
+            Remove
+          </button>
+        </div>
+      ) : null}
+      <RemovedToast key={removedData?.at ?? 0} data={removedData} />
       <p className="mt-3 text-[11px] text-ink-500">
         ~ played-condition value, estimated from typical TCGplayer discounts on the Near Mint price. * your own value.
         Slabs use PSA sold prices when comps exist, otherwise the raw price.
@@ -274,7 +371,19 @@ export default function Collection({ loaderData, actionData }: Route.ComponentPr
   );
 }
 
-function EditRow({ item, finishes, error, onClose }: { item: OwnedItem; finishes: string[]; error?: string; onClose: () => void }) {
+function EditRow({
+  item,
+  finishes,
+  error,
+  onClose,
+  onRemove,
+}: {
+  item: OwnedItem;
+  finishes: string[];
+  error?: string;
+  onClose: () => void;
+  onRemove: () => void;
+}) {
   const [graded, setGraded] = useState(!!item.grader);
   const busy = useNavigation().state !== "idle";
   const field = "rounded-md border border-ink-700 bg-ink-900 px-2 py-1 text-xs";
@@ -346,16 +455,8 @@ function EditRow({ item, finishes, error, onClose }: { item: OwnedItem; finishes
         </button>
       </div>
       <div className="w-full">
-        <button
-          name="intent"
-          value="delete"
-          formNoValidate
-          onClick={(e) => {
-            if (!confirm("Remove this card from your collection?")) e.preventDefault();
-          }}
-          className="text-[11px] text-rose-300 underline"
-        >
-          Remove from collection
+        <button type="button" onClick={onRemove} className="text-[11px] text-rose-300 underline">
+          Remove {item.quantity > 1 ? `all ${item.quantity} copies` : "from collection"}
         </button>
       </div>
     </Form>
@@ -368,5 +469,70 @@ function Labeled({ label, children }: { label: React.ReactNode; children: React.
       <span className="mb-1 block">{label}</span>
       {children}
     </label>
+  );
+}
+
+function Check({ on, className = "" }: { on: boolean; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={`grid h-5 w-5 shrink-0 place-items-center rounded border text-[11px] font-bold ${
+        on ? "border-accent bg-accent text-black" : "border-ink-500 bg-ink-950/70"
+      } ${className}`}
+    >
+      {on ? "✓" : ""}
+    </span>
+  );
+}
+
+/** Takes one copy off (the row goes at zero). Undo is in the toast. */
+function RemoveOne({ quantity, disabled, onClick }: { quantity: number; disabled: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      title={quantity > 1 ? "Remove one copy" : "Remove"}
+      aria-label={quantity > 1 ? "Remove one copy" : "Remove"}
+      className="grid h-10 w-10 shrink-0 place-items-center text-ink-500 hover:text-rose-300 disabled:opacity-40 md:h-7 md:w-7"
+    >
+      {quantity > 1 ? (
+        <span className="text-base leading-none">−</span>
+      ) : (
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+/** "Removed 3 cards — Undo", gone after a few seconds. */
+function RemovedToast({ data }: { data: { removed: RemovedCopy[]; at: number } | null }) {
+  const undo = useFetcher();
+  const [closedAt, setClosedAt] = useState(0);
+  const close = useCallback(() => setClosedAt(Date.now()), []);
+  const show = data && data.removed.length && data.at > closedAt && undo.state === "idle" && !undo.data;
+  useEffect(() => {
+    if (!show) return;
+    const t = setTimeout(close, 7000);
+    return () => clearTimeout(t);
+  }, [show, close]);
+  if (!show || !data) return null;
+  const copies = data.removed.reduce((n, c) => n + Number(c.quantity ?? 1), 0);
+  return (
+    <div role="status" className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 whitespace-nowrap rounded-lg border border-ink-700 bg-ink-850 px-4 py-2.5 text-sm shadow-xl md:bottom-4">
+      <span>
+        Removed {copies === 1 ? "1 card" : `${copies} cards`}
+      </span>
+      <undo.Form method="post">
+        <input type="hidden" name="intent" value="restore" />
+        <input type="hidden" name="copies" value={JSON.stringify(data.removed)} />
+        <button className="text-xs font-semibold text-accent underline">Undo</button>
+      </undo.Form>
+    </div>
   );
 }

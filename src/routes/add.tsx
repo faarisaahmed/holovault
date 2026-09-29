@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { Link, useActionData, useFetcher, useNavigation } from "react-router";
 import type { Route } from "./+types/add";
 import { AddPanel, type AddableCard } from "@/components/add-panel";
+import { ConditionPicker, useStickyCondition } from "@/components/condition-picker";
 import { SearchBox, Toggle } from "@/components/controls";
 import { finishShort } from "@/components/finish";
 import { AddedToast, type Added } from "@/components/toast";
@@ -51,6 +52,7 @@ export default function AddCards({ loaderData }: Route.ComponentProps) {
   const quick = useFetcher<CardActionResult>();
   const full = useActionData<typeof action>() as CardActionResult | undefined;
   const searching = useNavigation().state === "loading";
+  const [condition, setCondition] = useStickyCondition(defaultCondition);
 
   // The most recent add from either the quick buttons or the full panel.
   const latest = [quick.data, full]
@@ -68,7 +70,7 @@ export default function AddCards({ loaderData }: Route.ComponentProps) {
         <p className="mt-1 max-w-3xl text-sm text-ink-400">
           Search by name, set or number — <code className="text-ink-300">charizard 151</code>,{" "}
           <code className="text-ink-300">umbreon 215</code>, <code className="text-ink-300">sv03.5 199</code>. The
-          quick buttons add one copy in {defaultCondition}; click a card for condition, grading, quantity and price
+          quick buttons add one copy in the condition picked below; click a card for grading, quantity and price
           paid.
         </p>
       </div>
@@ -86,6 +88,9 @@ export default function AddCards({ loaderData }: Route.ComponentProps) {
         <Link to="/add/scan" className="ml-auto rounded-md border border-ink-700 px-3 py-1.5 text-xs text-ink-200 hover:border-accent">
           Scan with camera
         </Link>
+      </div>
+      <div className="mb-5 -mt-2">
+        <ConditionPicker value={condition} onChange={setCondition} label="Adding as" />
       </div>
 
       {q.trim().length < 2 ? (
@@ -111,7 +116,7 @@ export default function AddCards({ loaderData }: Route.ComponentProps) {
             return (
               <div key={c.id} className={open === c.id ? "col-span-2 sm:col-span-3 md:col-span-4 lg:col-span-6" : ""}>
                 {open === c.id ? (
-                  <AddPanel card={c} defaultCondition={defaultCondition} onDone={close} />
+                  <AddPanel card={c} defaultCondition={condition} onDone={close} />
                 ) : (
                   <div className="flex flex-col">
                     <button onClick={() => setOpen(c.id)} className="group relative overflow-hidden rounded-lg bg-ink-850 ring-1 ring-ink-800 transition hover:-translate-y-0.5 hover:ring-accent" title="More options">
@@ -136,9 +141,9 @@ export default function AddCards({ loaderData }: Route.ComponentProps) {
                           <input type="hidden" name="intent" value="add" />
                           <input type="hidden" name="cardId" value={c.id} />
                           <input type="hidden" name="finish" value={f.name} />
-                          <input type="hidden" name="condition" value={defaultCondition} />
+                          <input type="hidden" name="condition" value={condition} />
                           <button
-                            title={`Add one ${f.name} copy (${defaultCondition})`}
+                            title={`Add one ${f.name} copy (${condition})`}
                             className="rounded border border-ink-700 bg-ink-850 px-1.5 py-0.5 text-[10px] text-ink-300 transition-colors hover:border-accent hover:text-accent"
                           >
                             + {finishShort(f.name)}

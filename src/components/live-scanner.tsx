@@ -6,6 +6,7 @@ import { parseScanText } from "@/lib/scan";
 import { usd } from "@/lib/format";
 import type { Region } from "@/lib/types";
 import type { Candidate } from "@/routes/add-scan";
+import { ConditionPicker, useStickyCondition } from "./condition-picker";
 import { finishShort } from "./finish";
 
 /**
@@ -39,6 +40,7 @@ export function LiveScanner({ region, defaultCondition, onClose }: { region: Reg
   const [options, setOptions] = useState<Candidate[]>([]);
   const [pick, setPick] = useState(0);
   const [added, setAdded] = useState<{ id: string; label: string }[]>([]);
+  const [condition, setCondition] = useStickyCondition(defaultCondition);
   const match = useFetcher<MatchData>();
   const add = useFetcher<CardActionResult>();
   const undo = useFetcher();
@@ -204,7 +206,7 @@ export function LiveScanner({ region, defaultCondition, onClose }: { region: Reg
     if (!("added" in d)) return;
     const a = d.added;
     queueMicrotask(() => {
-      setAdded((list) => [{ id: a.id, label: `${a.name} · ${finishShort(a.finish)}` }, ...list]);
+      setAdded((list) => [{ id: a.id, label: `${a.name} · ${finishShort(a.finish)} · ${a.label}` }, ...list]);
       moveOn(`Added ${a.name}. Move to the next card.`);
     });
   }, [add.data, add.state, moveOn]);
@@ -271,13 +273,16 @@ export function LiveScanner({ region, defaultCondition, onClose }: { region: Reg
                 {card.officialCount ? `/${card.officialCount}` : ""}
                 {card.owned ? ` · you have ${card.owned}` : ""}
               </div>
+              <div className="mt-2">
+                <ConditionPicker value={condition} onChange={setCondition} />
+              </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {card.finishes.map((f) => (
                   <button
                     key={f.name}
                     disabled={add.state !== "idle"}
                     onClick={() =>
-                      add.submit({ intent: "add", cardId: card.id, finish: f.name, condition: defaultCondition }, { method: "post", action: "/add/scan" })
+                      add.submit({ intent: "add", cardId: card.id, finish: f.name, condition }, { method: "post", action: "/add/scan" })
                     }
                     className="rounded-md bg-accent px-2.5 py-1.5 text-xs font-semibold text-black disabled:opacity-50"
                   >
@@ -316,6 +321,7 @@ export function LiveScanner({ region, defaultCondition, onClose }: { region: Reg
             Line the card up with the outline. When it's recognised, it pops up here: tap Add, then move to the next
             pocket.
           </p>
+          <ConditionPicker value={condition} onChange={setCondition} label="Adding as" />
           <div className="flex items-center gap-3">
           <span>{added.length ? `${added.length} added this session` : "Nothing added yet"}</span>
           {added.length ? (
