@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router";
 
-type Item = { to: string; label: string; end?: boolean };
+type Item = { to: string; label: string; end?: boolean; dot?: boolean };
 
 const ICONS: Record<string, React.ReactNode> = {
   "/": <path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z" />,
@@ -82,6 +82,7 @@ export function MobileNav({ items }: { items: Item[] }) {
                   }
                 >
                   {i.label}
+                  {i.dot ? <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-accent align-middle" aria-label="New" /> : null}
                 </NavLink>
               ))}
             </div>
@@ -95,7 +96,8 @@ export function MobileNav({ items }: { items: Item[] }) {
             {i.to === "/add" ? "Add" : i.label}
           </NavLink>
         ))}
-        <button onClick={() => setOpen((o) => !o)} className={tab(open || restActive)} aria-expanded={open}>
+        <button onClick={() => setOpen((o) => !o)} className={`relative ${tab(open || restActive)}`} aria-expanded={open}>
+          {rest.some((i) => i.dot) ? <span className="absolute right-[calc(50%-14px)] top-1.5 h-1.5 w-1.5 rounded-full bg-accent" aria-label="New" /> : null}
           <Icon name="more" />
           More
         </button>

@@ -20,6 +20,7 @@ import { getSessionUser } from "@/lib/server/auth.server";
 import { lastIngest } from "@/lib/server/catalog.server";
 import { ripwiseUrl } from "@/lib/server/graded.server";
 import { sealedEnabled } from "@/lib/server/sealed.server";
+import { hasNewUpdates } from "@/lib/server/updates.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await getSessionUser(request);
@@ -27,6 +28,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     user: user ? { name: user.name, email: user.email } : null,
     // The sealed tab only shows for accounts that switched it on.
     sealed: user ? await sealedEnabled(user.id) : false,
+    // A quiet dot on "What's new" until the user has looked.
+    news: user ? await hasNewUpdates(user.id, user.createdAt ?? 0) : false,
     ingested: lastIngest(),
     ripwise: ripwiseUrl() ?? null,
   };
@@ -111,7 +114,7 @@ const NAV = [
 ];
 
 export default function App({ loaderData }: Route.ComponentProps) {
-  const { user, ripwise, sealed } = loaderData;
+  const { user, ripwise, sealed, news } = loaderData;
   const nav = sealed ? [...NAV, { to: "/sealed", label: "Sealed" }] : NAV;
   // Pages like sign-in fill the whole screen with their own layout.
   const bare = useMatches().some((m) => (m.handle as { bare?: boolean } | undefined)?.bare);
@@ -139,6 +142,15 @@ export default function App({ loaderData }: Route.ComponentProps) {
             </nav>
           ) : null}
           <div className="ml-auto flex shrink-0 items-center gap-3">
+            {user ? (
+              <NavLink
+                to="/whats-new"
+                className={({ isActive }) => `relative hidden text-xs transition-colors hover:text-accent lg:block ${isActive ? "text-accent" : "text-ink-400"}`}
+              >
+                What's new
+                {news ? <span className="absolute -right-2 -top-0.5 h-1.5 w-1.5 rounded-full bg-accent" aria-label="New updates" /> : null}
+              </NavLink>
+            ) : null}
             <ThemeSwitcher />
             {user ? (
               <NavLink
@@ -160,9 +172,16 @@ export default function App({ loaderData }: Route.ComponentProps) {
       <main className="mx-auto max-w-[1400px] px-4 py-6">
         <Outlet />
       </main>
-      {user ? <MobileNav items={[...nav, { to: "/import", label: "Import" }, { to: "/settings", label: "Settings" }]} /> : null}
+      {user ? (
+        <MobileNav
+          items={[...nav, { to: "/import", label: "Import" }, { to: "/settings", label: "Settings" }, { to: "/whats-new", label: "What's new", dot: news }]}
+        />
+      ) : null}
       <footer className="mx-auto max-w-[1400px] px-4 pb-24 pt-4 md:pb-10 text-[11px] leading-relaxed text-ink-400">
-        Your collection is private to your account and never shared or sold. No ads, no analytics.
+        <Link to="/whats-new" className="underline hover:text-ink-200">
+          What's new
+        </Link>
+        {" · "}Your collection is private to your account and never shared or sold. No ads, no analytics.
         Card data from TCGdex, market prices from TCGplayer via TCGCSV. Condition discounts are
         estimates.
         {ripwise ? (

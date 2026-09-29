@@ -173,6 +173,8 @@ export const userSettings = pgTable("user_settings", {
   shareToken: text("share_token").unique(),
   /** Whether the shared collection page shows prices. */
   shareShowValues: boolean("share_show_values").notNull().default(false),
+  /** Date of the newest "What's new" entry this user has seen. */
+  seenUpdates: text("seen_updates"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 

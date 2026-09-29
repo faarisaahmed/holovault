@@ -22,6 +22,7 @@ export default [
   route("s/b/:token", "routes/share-binder.tsx"),
   route("s/c/:token", "routes/share-collection.tsx"),
   route("settings", "routes/settings.tsx"),
+  route("whats-new", "routes/whats-new.tsx"),
   route("export/:format", "routes/export.tsx"),
   route("api/auth/*", "routes/api.auth.tsx"),
   route("api/card-thumb", "routes/api.card-thumb.tsx"),

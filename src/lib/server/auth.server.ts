@@ -122,6 +122,7 @@ export interface SessionUser {
   email: string;
   emailVerified: boolean;
   image?: string | null;
+  createdAt?: Date | string;
 }
 
 export async function getSessionUser(request: Request): Promise<SessionUser | null> {
