@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/server/auth.server";
 import { addItem, getSettings } from "@/lib/server/collection.server";
 import { MAX_BYTES, previewImport } from "@/lib/server/import.server";
 
-export const meta: Route.MetaFunction = () => [{ title: "Import — Holovault" }];
+export const meta: Route.MetaFunction = () => [{ title: "Import — Shadowless" }];
 
 export async function loader({ request }: Route.LoaderArgs) {
   await requireUser(request);

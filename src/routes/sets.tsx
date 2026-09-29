@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/server/auth.server";
 import { listSets } from "@/lib/server/catalog.server";
 import { mySets, setGoal } from "@/lib/server/progress.server";
 
-export const meta: Route.MetaFunction = () => [{ title: "Sets — Holovault" }];
+export const meta: Route.MetaFunction = () => [{ title: "Sets — Shadowless" }];
 
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await requireUser(request);

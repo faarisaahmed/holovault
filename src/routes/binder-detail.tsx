@@ -10,7 +10,7 @@ import { requireUser } from "@/lib/server/auth.server";
 import { binderCandidates, binderInput, deleteBinder, getBinder, toRecord, updateBinder } from "@/lib/server/binder.server";
 import { listSets, listSpecies } from "@/lib/server/catalog.server";
 
-export const meta: Route.MetaFunction = ({ loaderData }) => [{ title: `${loaderData?.binder.name ?? "Binder"} — Holovault` }];
+export const meta: Route.MetaFunction = ({ loaderData }) => [{ title: `${loaderData?.binder.name ?? "Binder"} — Shadowless` }];
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const user = await requireUser(request);

@@ -23,7 +23,7 @@ export function AuthShell({ showcase, children }: { showcase: Showcase[]; childr
       <aside className="holo-panel relative hidden overflow-hidden border-r border-ink-800 lg:flex lg:flex-col lg:justify-between lg:p-12">
         <Link to="/" className="flex items-center gap-2.5 text-lg font-semibold tracking-tight">
           <img src="/favicon.svg" alt="" className="h-8 w-8" />
-          Holovault
+          Shadowless
         </Link>
 
         <div className="relative mx-auto my-10 h-80 w-full max-w-lg">
@@ -67,13 +67,13 @@ export function AuthShell({ showcase, children }: { showcase: Showcase[]; childr
       <main className="flex flex-col px-5 py-8 sm:px-10">
         <Link to="/" className="flex items-center gap-2 font-semibold tracking-tight lg:hidden">
           <img src="/favicon.svg" alt="" className="h-7 w-7" />
-          Holovault
+          Shadowless
         </Link>
         <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center py-10">{children}</div>
         <p className="text-center text-[11px] text-ink-500">
           Private by default · No ads · No tracking ·{" "}
           <Link to="/" className="underline hover:text-ink-300">
-            About Holovault
+            About Shadowless
           </Link>
         </p>
       </main>

@@ -13,7 +13,7 @@ import { progressCards, setGoal, trackedSpecies } from "@/lib/server/progress.se
 import type { Region } from "@/lib/types";
 
 export const meta: Route.MetaFunction = ({ loaderData }) => [
-  { title: `${loaderData?.species?.name ?? "Pokémon"} — Holovault` },
+  { title: `${loaderData?.species?.name ?? "Pokémon"} — Shadowless` },
 ];
 
 const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9♀♂]+/g, "");

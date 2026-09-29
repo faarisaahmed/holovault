@@ -6,7 +6,7 @@ import { AuthShell } from "@/components/auth-shell";
 import { getAuth } from "@/lib/server/auth.server";
 import { showcaseCards } from "@/lib/server/showcase.server";
 
-export const meta: Route.MetaFunction = () => [{ title: "Choose a new password — Holovault" }];
+export const meta: Route.MetaFunction = () => [{ title: "Choose a new password — Shadowless" }];
 
 /** Full-screen page: no site header or footer. */
 export const handle = { bare: true };

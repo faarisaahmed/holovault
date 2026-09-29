@@ -12,7 +12,7 @@ import { finishPrices, finishesFor, searchCards } from "@/lib/server/catalog.ser
 import { getSettings, ownedCounts } from "@/lib/server/collection.server";
 import type { Region } from "@/lib/types";
 
-export const meta: Route.MetaFunction = () => [{ title: "Add cards — Holovault" }];
+export const meta: Route.MetaFunction = () => [{ title: "Add cards — Shadowless" }];
 
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await requireUser(request);

@@ -8,7 +8,7 @@ import { getSettings, valuedCollection } from "@/lib/server/collection.server";
 import { gradedPrices, gradedSourceConfigured, refreshGraded } from "@/lib/server/graded.server";
 import { gradingCall, type GradingVerdict } from "@/lib/valuation";
 
-export const meta: Route.MetaFunction = () => [{ title: "Grading — Holovault" }];
+export const meta: Route.MetaFunction = () => [{ title: "Grading — Shadowless" }];
 
 const ORDER: Record<GradingVerdict, number> = { grade: 0, maybe: 1, unknown: 2, no: 3 };
 

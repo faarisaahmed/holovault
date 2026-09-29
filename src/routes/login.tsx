@@ -7,7 +7,7 @@ import { showcaseCards } from "@/lib/server/showcase.server";
 import { AuthShell } from "@/components/auth-shell";
 import { Alert, Field, PasswordInput, StrengthMeter, TextInput } from "@/components/auth-fields";
 
-export const meta: Route.MetaFunction = () => [{ title: "Sign in — Holovault" }];
+export const meta: Route.MetaFunction = () => [{ title: "Sign in — Shadowless" }];
 
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
@@ -115,7 +115,7 @@ export default function Login({ loaderData }: Route.ComponentProps) {
     return `?${p.toString()}`;
   };
 
-  const title = mode === "up" ? "Create your vault" : mode === "forgot" ? "Reset your password" : "Welcome back";
+  const title = mode === "up" ? "Start your collection" : mode === "forgot" ? "Reset your password" : "Welcome back";
   const subtitle =
     mode === "up"
       ? "Free, and private to you. Takes a few seconds."

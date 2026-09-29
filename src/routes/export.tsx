@@ -36,7 +36,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       binders: (await listBinders(user.id)).map((b) => ({ name: b.name, rows: b.rows, cols: b.cols, config: b.config })),
     };
     return new Response(JSON.stringify(body, null, 2), {
-      headers: { ...headers, "Content-Type": "application/json", "Content-Disposition": `attachment; filename="holovault-${date}.json"` },
+      headers: { ...headers, "Content-Type": "application/json", "Content-Disposition": `attachment; filename="shadowless-${date}.json"` },
     });
   }
 
@@ -69,6 +69,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       .join(","),
   );
   return new Response([header.join(","), ...lines].join("\r\n"), {
-    headers: { ...headers, "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="holovault-${date}.csv"` },
+    headers: { ...headers, "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="shadowless-${date}.csv"` },
   });
 }

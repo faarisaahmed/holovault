@@ -16,7 +16,7 @@ import { and, eq } from "drizzle-orm";
 import { useRipwiseUrl } from "@/root";
 
 export const meta: Route.MetaFunction = ({ loaderData }) => [
-  { title: `${loaderData?.set.name ?? "Set"} — Holovault` },
+  { title: `${loaderData?.set.name ?? "Set"} — Shadowless` },
 ];
 
 export async function loader({ request, params }: Route.LoaderArgs) {

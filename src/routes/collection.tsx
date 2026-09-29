@@ -9,7 +9,7 @@ import { finishPrices, finishesFor, getCard } from "@/lib/server/catalog.server"
 import { itemInput, removeItem, totals, updateItem, valuedCollection, type OwnedItem } from "@/lib/server/collection.server";
 import { CONDITIONS, GRADERS, GRADES } from "@/lib/valuation";
 
-export const meta: Route.MetaFunction = () => [{ title: "Collection — Holovault" }];
+export const meta: Route.MetaFunction = () => [{ title: "Collection — Shadowless" }];
 
 const SORTS = {
   value: "Value",

@@ -31,7 +31,7 @@ async function build() {
   }
 
   return betterAuth({
-    appName: "Holovault",
+    appName: "Shadowless",
     baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:5173",
     secret: process.env.BETTER_AUTH_SECRET ?? "dev-only-secret-change-me-dev-only-secret",
     database: drizzleAdapter(db, { provider: "pg", schema }),
@@ -47,7 +47,7 @@ async function build() {
             sendResetPassword: async ({ user, url }) =>
               sendEmail(
                 user.email,
-                "Reset your Holovault password",
+                "Reset your Shadowless password",
                 `Someone asked to reset the password for this account. If it was you, open this link within the hour:\n\n${url}\n\nIf it wasn't, ignore this email; your password stays the same.`,
               ),
           }
@@ -61,7 +61,7 @@ async function build() {
             sendVerificationEmail: async ({ user, url }) =>
               sendEmail(
                 user.email,
-                "Confirm your Holovault email",
+                "Confirm your Shadowless email",
                 `Confirm this address to finish creating your account:\n\n${url}\n\nIf you didn't sign up, ignore this email.`,
               ),
           },

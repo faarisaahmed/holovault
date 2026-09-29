@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/server/auth.server";
 import { binderInput, createBinder, listBinders, toRecord } from "@/lib/server/binder.server";
 import { listSets, listSpecies } from "@/lib/server/catalog.server";
 
-export const meta: Route.MetaFunction = () => [{ title: "Binders — Holovault" }];
+export const meta: Route.MetaFunction = () => [{ title: "Binders — Shadowless" }];
 
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await requireUser(request);
