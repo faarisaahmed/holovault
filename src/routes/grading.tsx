@@ -94,7 +94,44 @@ export default function Grading({ loaderData: d }: Route.ComponentProps) {
           {d.totalRaw ? "Nothing looks worth grading right now." : "No raw Mint or Near Mint cards in your collection yet."}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-ink-800 bg-ink-900">
+        <>
+        {/* Phones: one card per row, verdict and the numbers that drive it. */}
+        <ul className="divide-y divide-ink-850 overflow-hidden rounded-xl border border-ink-800 bg-ink-900 md:hidden">
+          {d.rows.map((r) => (
+            <li key={r.id} className="flex gap-3 px-3 py-2.5">
+              {r.image ? <img src={r.image} alt="" loading="lazy" className="h-16 w-auto shrink-0 rounded-sm" /> : null}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">{r.name}</div>
+                    <div className="truncate text-[11px] text-ink-500">
+                      {r.setName} · {r.localId} · {finishShort(r.finish)}
+                      {r.quantity > 1 ? ` ×${r.quantity}` : ""}
+                    </div>
+                  </div>
+                  <span className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-semibold ring-1 ${VERDICT[r.verdict].tone}`}>{VERDICT[r.verdict].label}</span>
+                </div>
+                <dl className="tnum mt-1.5 grid grid-cols-4 gap-1 text-[11px]">
+                  {[
+                    ["Raw", usd(r.raw)],
+                    ["PSA 9", usd(r.psa9)],
+                    ["PSA 10", usd(r.psa10)],
+                    ["Break-even", usd(r.breakEven)],
+                  ].map(([k, v]) => (
+                    <div key={k}>
+                      <dt className="text-[9px] uppercase tracking-wider text-ink-500">{k}</dt>
+                      <dd className="text-ink-200">{v}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <a href={r.soldUrl} target="_blank" rel="noreferrer noopener" className="mt-1 inline-block text-[11px] text-ink-400 underline">
+                  Sold listings
+                </a>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <div className="hidden overflow-x-auto rounded-xl border border-ink-800 bg-ink-900 md:block">
           <table className="w-full min-w-[820px] text-sm">
             <thead>
               <tr className="border-b border-ink-800 text-left text-[10px] uppercase tracking-wider text-ink-400">
@@ -145,6 +182,7 @@ export default function Grading({ loaderData: d }: Route.ComponentProps) {
             </tbody>
           </table>
         </div>
+        </>
       )}
       <p className="mt-3 max-w-3xl text-[11px] leading-relaxed text-ink-500">
         Graded prices are averages of recent eBay sold listings, refreshed weekly

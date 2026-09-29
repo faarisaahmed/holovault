@@ -108,9 +108,9 @@ export default function SealedProduct({ loaderData: d, actionData }: Route.Compo
     <>
       <Breadcrumbs items={[{ href: "/sealed", label: "Sealed" }, { label: p.name }]} />
       <div className="mb-5 flex flex-wrap items-start gap-4">
-        {p.image ? <img src={p.image} alt="" className="h-28 w-28 rounded-lg bg-ink-850 object-contain p-1 ring-1 ring-ink-800" /> : null}
+        {p.image ? <img src={p.image} alt="" className="h-20 w-20 shrink-0 rounded-lg sm:h-28 sm:w-28 bg-ink-850 object-contain p-1 ring-1 ring-ink-800" /> : null}
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-semibold tracking-tight">{p.name}</h1>
+          <h1 className="text-base font-semibold tracking-tight sm:text-xl">{p.name}</h1>
           <p className="mt-0.5 text-xs text-ink-400">
             {CATEGORY_LABELS[p.category] ?? p.category} · {p.setName} · {p.releaseDate}
             {p.url ? (

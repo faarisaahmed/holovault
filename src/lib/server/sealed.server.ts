@@ -46,6 +46,19 @@ function toProduct(r: Record<string, unknown>): SealedProduct {
   };
 }
 
+const SEARCH_ALIASES: Record<string, { category?: string; name: string }> = {
+  etb: { category: "etb", name: "elite trainer box" },
+  etbs: { category: "etb", name: "elite trainer box" },
+  upc: { category: "upc", name: "ultra-premium collection" },
+  bb: { category: "box", name: "booster box" },
+  bbs: { category: "box", name: "booster box" },
+  pc: { name: "pokemon center" },
+  spc: { name: "special collection" },
+  bundles: { category: "bundle", name: "booster bundle" },
+  tins: { category: "tin", name: " tin" },
+  blisters: { category: "blister", name: "blister" },
+};
+
 export function searchSealed(query: string, region: "en" | "ja", category: string | null, limit = 60): SealedProduct[] {
   const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6);
   const where = ["sc.region = @region"];
@@ -55,8 +68,15 @@ export function searchSealed(query: string, region: "en" | "ja", category: strin
     params.category = category;
   }
   tokens.forEach((t, i) => {
-    where.push(`(lower(sc.name) LIKE @t${i} OR lower(s.name) LIKE @t${i})`);
+    // Shorthand collectors type ("etb", "upc", "bb", "pc") matches the product type or its spelled-out name.
+    const alias = SEARCH_ALIASES[t];
+    const extra = alias ? ` OR sc.category = @c${i} OR lower(sc.name) LIKE @a${i}` : "";
+    where.push(`(lower(sc.name) LIKE @t${i} OR lower(s.name) LIKE @t${i}${extra})`);
     params[`t${i}`] = `%${t}%`;
+    if (alias) {
+      params[`c${i}`] = alias.category ?? "";
+      params[`a${i}`] = `%${alias.name}%`;
+    }
   });
   if (!tokens.length && !category) return [];
   return (
