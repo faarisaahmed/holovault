@@ -102,10 +102,12 @@ const NAV = [
   { to: "/", label: "Dashboard", end: true },
   { to: "/add", label: "Add cards" },
   { to: "/collection", label: "Collection" },
+  { to: "/wishlist", label: "Wishlist" },
   { to: "/sets", label: "Sets" },
   { to: "/pokemon", label: "Pokémon" },
   { to: "/binders", label: "Binders" },
   { to: "/grading", label: "Grading" },
+  { to: "/trade", label: "Trade" },
 ];
 
 export default function App({ loaderData }: Route.ComponentProps) {

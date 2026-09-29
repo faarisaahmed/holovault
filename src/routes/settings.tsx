@@ -4,6 +4,8 @@ import { CONDITIONS } from "@/lib/valuation";
 import { authFeatures, getAuth, requireUser } from "@/lib/server/auth.server";
 import { getSettings, saveSettings, settingsInput } from "@/lib/server/collection.server";
 import { sealedEnabled, setSealedEnabled } from "@/lib/server/sealed.server";
+import { collectionShare, setCollectionShare } from "@/lib/server/share.server";
+import { ShareLink } from "@/components/share-link";
 import { safeNext } from "@/lib/server/safe-redirect";
 
 export const meta: Route.MetaFunction = () => [{ title: "Settings — Shadowless" }];
@@ -11,11 +13,12 @@ export const meta: Route.MetaFunction = () => [{ title: "Settings — Shadowless
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await requireUser(request);
   const auth = await getAuth();
-  const [accounts, sessions, settings, sealed] = await Promise.all([
+  const [accounts, sessions, settings, sealed, share] = await Promise.all([
     auth.api.listUserAccounts({ headers: request.headers }),
     auth.api.listSessions({ headers: request.headers }),
     getSettings(user.id),
     sealedEnabled(user.id),
+    collectionShare(user.id),
   ]);
   const providers = accounts.map((a) => a.providerId);
   return {
@@ -25,6 +28,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     sessionCount: sessions.length,
     settings,
     sealed,
+    share,
     features: authFeatures(),
   };
 }
@@ -96,6 +100,11 @@ export async function action({ request }: Route.ActionArgs): Promise<Response | 
     case "sign-out": {
       const res = await auth.api.signOut({ headers, asResponse: true });
       return redirectWith(res, "/");
+    }
+    case "share": {
+      const on = form.get("on") === "1";
+      await setCollectionShare(user.id, on, form.get("values") === "1");
+      return { section: "share", ok: on ? "Your collection link is on." : "Sharing is off. The old link no longer works." };
     }
     case "sealed": {
       await setSealedEnabled(user.id, form.get("on") === "1");
@@ -240,6 +249,22 @@ export default function Settings({ loaderData: d, actionData }: Route.ComponentP
           </button>
         </Form>
         {note("preferences")}
+      </Section>
+
+      <Section title="Share your collection">
+        <p className="mb-3 text-sm text-ink-300">
+          A read-only page of your cards for friends or trades. Off by default; turning it off retires the link.
+        </p>
+        <ShareLink
+          path={d.share.token ? `/s/c/${d.share.token}` : null}
+          what="your collection"
+          extra={
+            <label className="flex items-center gap-1.5 text-ink-300">
+              <input type="checkbox" name="values" value="1" defaultChecked={d.share.showValues} /> Show values
+            </label>
+          }
+        />
+        {note("share")}
       </Section>
 
       <Section title="Sealed inventory">

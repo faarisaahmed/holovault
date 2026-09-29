@@ -49,7 +49,7 @@ export function AddPanel({
   const price = card.finishes.find((f) => f.name === finish)?.price ?? null;
 
   return (
-    <fetcher.Form method="post" className="rounded-xl border border-accent/40 bg-ink-900 p-4 shadow-lg">
+    <fetcher.Form method="post" action="/add" className="rounded-xl border border-accent/40 bg-ink-900 p-4 shadow-lg">
       <input type="hidden" name="intent" value="add" />
       <input type="hidden" name="cardId" value={card.id} />
       <input type="hidden" name="finish" value={finish} />

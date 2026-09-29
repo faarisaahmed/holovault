@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 import type { CardActionResult } from "@/lib/server/card-actions.server";
-import { framePrint, likeness, rankByLooks, readStrips } from "@/lib/ocr.client";
+import { framePrint, likeness, preloadOcr, rankByLooks, readStrips } from "@/lib/ocr.client";
 import { parseScanText } from "@/lib/scan";
 import { usd } from "@/lib/format";
 import type { Region } from "@/lib/types";
@@ -36,7 +36,8 @@ interface MatchData {
   offer: "sure" | "choose" | "wait";
 }
 
-export function LiveScanner({ region, defaultCondition, onClose }: { region: Region; defaultCondition: string; onClose: () => void }) {
+export function LiveScanner({ region: initialRegion, defaultCondition, onClose }: { region: Region; defaultCondition: string; onClose: () => void }) {
+  const [region, setRegion] = useState<Region>(initialRegion);
   const video = useRef<HTMLVideoElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const [phase, setPhaseState] = useState<Phase>("starting");
@@ -173,7 +174,7 @@ export function LiveScanner({ region, defaultCondition, onClose }: { region: Reg
         const card = grab(1600);
         if (!card) return;
         // After an unsure result, also read the attacks for this card.
-        const read = await readStrips(card, reads.current++, wantBody.current);
+        const read = await readStrips(card, reads.current++, wantBody.current, region === "ja" ? "ja" : "en");
         if (stop) return;
         const totals = new Set(parseScanText(read.bottom).numbers.filter((n) => n.total != null).map((n) => `${n.local}/${n.total}`));
         if (totals.size > 1) {
@@ -278,7 +279,24 @@ export function LiveScanner({ region, defaultCondition, onClose }: { region: Reg
             <div className="font-semibold">One card in the frame</div>
             <div className="text-white/70">Fill the outline, hold still. Tilt away from glare.</div>
           </div>
-          <button onClick={onClose} className="ml-auto rounded-full bg-black/60 px-3 py-1.5 text-sm font-semibold">
+          <div className="ml-auto flex rounded-full bg-black/60 p-0.5 text-xs font-semibold" role="radiogroup" aria-label="Card language">
+            {(["en", "ja"] as const).map((r) => (
+              <button
+                key={r}
+                role="radio"
+                aria-checked={region === r}
+                onClick={() => {
+                  if (r === "ja") preloadOcr(undefined, "ja");
+                  attempts.current.clear();
+                  setRegion(r);
+                }}
+                className={`rounded-full px-2.5 py-1 ${region === r ? "bg-white text-black" : "text-white/80"}`}
+              >
+                {r === "en" ? "EN" : "JP"}
+              </button>
+            ))}
+          </div>
+          <button onClick={onClose} className="rounded-full bg-black/60 px-3 py-1.5 text-sm font-semibold">
             Done{added.length ? ` · ${added.length}` : ""}
           </button>
         </div>

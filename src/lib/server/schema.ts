@@ -150,6 +150,8 @@ export const binder = pgTable(
     cols: integer("cols").notNull().default(3),
     /** BinderConfig, validated on read (see binder.ts). */
     config: jsonb("config").notNull().default(sql`'{}'::jsonb`),
+    /** Set when the owner turns on a read-only share link (/s/b/<token>). */
+    shareToken: text("share_token").unique(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -167,6 +169,10 @@ export const userSettings = pgTable("user_settings", {
   defaultRegion: text("default_region").notNull().default("en"),
   /** Opt-in sealed inventory (for people who buy and sell sealed product). */
   sealedEnabled: boolean("sealed_enabled").notNull().default(false),
+  /** Read-only collection link (/s/c/<token>), off (null) by default. */
+  shareToken: text("share_token").unique(),
+  /** Whether the shared collection page shows prices. */
+  shareShowValues: boolean("share_show_values").notNull().default(false),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
@@ -259,4 +265,41 @@ export const sealedPrice = pgTable(
     low: numeric("low", { precision: 10, scale: 2 }),
   },
   (t) => [primaryKey({ columns: [t.productId, t.day] })],
+);
+
+/**
+ * Cards a user is hunting. A null finish means any printing. The price when
+ * added is kept so the list can say "down 12% since you added it".
+ */
+export const wishlistItem = pgTable(
+  "wishlist_item",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    cardId: text("card_id").notNull(),
+    finish: text("finish"),
+    /** Alert when the market price is at or under this, in cents. */
+    targetCents: integer("target_cents"),
+    priceAtAddCents: integer("price_at_add_cents"),
+    note: text("note"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("wishlist_user_idx").on(t.userId)],
+);
+
+/**
+ * Daily market price per card printing, recorded by each price refresh for
+ * cards someone owns or wants. Powers "this week's movers". Shared, not user data.
+ */
+export const cardPrice = pgTable(
+  "card_price",
+  {
+    cardId: text("card_id").notNull(),
+    finish: text("finish").notNull(),
+    day: date("day").notNull(),
+    market: numeric("market", { precision: 10, scale: 2 }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.cardId, t.finish, t.day] }), index("card_price_day_idx").on(t.day)],
 );

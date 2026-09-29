@@ -70,19 +70,23 @@ export function parseScanText(raw: string): ScanClues {
     ...new Set(
       normalizeName(text)
         .split(" ")
-        .filter((w) => w.length >= 3 && /[a-z]/.test(w)),
+        .filter((w) => w.length >= 3 && /[a-z]/.test(w) && !/[^a-z0-9']/.test(w)),
     ),
   ];
   return { numbers, setCodes, words };
 }
 
-/** Lowercase, accents off ("Flabébé" → "flabebe"), punctuation to spaces. */
+/**
+ * Lowercase, accents off ("Flabébé" → "flabebe"), punctuation to spaces.
+ * Japanese kana and kanji are kept (and dakuten stay attached).
+ */
 export function normalizeName(s: string): string {
   return s
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
+    .normalize("NFC")
     .toLowerCase()
-    .replace(/[^a-z0-9' ]+/g, " ")
+    .replace(/[^\p{L}\p{N}' ]+/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
 }

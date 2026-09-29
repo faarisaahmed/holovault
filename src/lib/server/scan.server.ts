@@ -44,7 +44,7 @@ function nameIndex(region: Region): NameIndex {
   return idx;
 }
 
-const compact = (s: string) => s.replace(/[^a-z0-9]/g, "");
+const compact = (s: string) => s.replace(/[^\p{L}\p{N}]/gu, "");
 
 /** "Pokémon ex rule" and friends: which mechanic the card belongs to. */
 const MECHANICS: [RegExp, string][] = [
@@ -148,7 +148,7 @@ function titleName(title: string, region: Region): { name: string | null; exact:
 function titleLine(title: string, region: Region): { name: string | null; exact: boolean } {
   const idx = nameIndex(region);
   // The stylized "ex" logo reads as "@X", "&X" or "8X".
-  const words = normalizeName(title.replace(/[@&©€]\s?\S?|\b8[xX]\b/g, " ex "))
+  const words = normalizeName(title.replace(/[@&©€]\s?\S?|\b8[xX]\b/g, " ex ").replace(/たね|[12１２]?進化|ＨＰ/g, " "))
     .split(" ")
     .filter((w) => w && !TITLE_NOISE.has(w) && !/\d/.test(w));
   const flat = compact(words.join(" "));
@@ -162,11 +162,14 @@ function titleLine(title: string, region: Region): { name: string | null; exact:
     if (flat.includes(c) || lettered.includes(c)) return { name: n, exact: true };
   }
   if (flat.length < 5) return { name: null, exact: false };
+  // Kana OCR mixes up サ/ザ and ハ/バ/パ: compare with the marks stripped.
+  const base = (x: string) => x.normalize("NFKD").replace(/[\u3099\u309a\u30fc\u2212-]/g, "");
+  const fb = base(flat);
   let best: { name: string; d: number } | null = null;
   for (const n of idx.names) {
     const c = compact(n);
     if (Math.abs(c.length - flat.length) > 2) continue;
-    const d = editDistance(flat, c, 2);
+    const d = editDistance(fb, base(c), 2);
     if (d <= 2 && (!best || d < best.d)) best = { name: n, d };
     if (best?.d === 1) break;
   }
@@ -256,7 +259,19 @@ export function matchScan(
   if (title && mech && !title.endsWith(` ${mech}`) && nameIndex(region).raw.has(`${title} ${mech}`)) title = `${title} ${mech}`;
   const exactTitle = fromTitle.name ? fromTitle.exact : !!loose?.title;
   const idx = nameIndex(region);
-  const longer = title && exactTitle ? idx.names.filter((n) => n !== title && n.endsWith(` ${title}`)).slice(0, 12) : [];
+  // Small print and logos get lost: "Rocket's" above "Suicune ex", or the ex /
+  // V / GX logo after a name. Those fuller names are candidates too, and the
+  // artwork's colours pick between them.
+  const SUFFIXES = ["ex", "v", "vmax", "vstar", "gx"];
+  const longer =
+    title
+      ? idx.names
+          .filter(
+            (n) =>
+              n !== title && ((exactTitle && n.endsWith(` ${title}`)) || SUFFIXES.some((x) => n === `${title} ${x}` || n === `${title}${x}`)),
+          )
+          .slice(0, 12)
+      : [];
 
   const abbrSets = new Set<string>();
   const codes = setsByAbbrev(region);

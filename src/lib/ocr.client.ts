@@ -42,9 +42,31 @@ function getWorkers(onProgress?: (p: number) => void): Promise<Workers> {
   return workers;
 }
 
+export type ScanLang = "en" | "ja";
+
+let jaTitle: Promise<Worker> | null = null;
+
+/**
+ * Japanese names need the Japanese model (2 MB), fetched only when the
+ * scanner is switched to JP. Numbers and set codes stay with the English one.
+ */
+function getJaTitle(): Promise<Worker> {
+  jaTitle ??= (async () => {
+    const { createWorker, OEM, PSM } = await import("tesseract.js");
+    const w = await createWorker("jpn", OEM.LSTM_ONLY, { workerPath: "/ocr/worker.min.js", corePath: "/ocr/", langPath: "/ocr", workerBlobURL: false });
+    await w.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_LINE });
+    return w;
+  })();
+  jaTitle.catch(() => {
+    jaTitle = null;
+  });
+  return jaTitle;
+}
+
 /** Warm the engine up while the camera opens. */
-export function preloadOcr(onProgress?: (p: number) => void) {
+export function preloadOcr(onProgress?: (p: number) => void, lang: ScanLang = "en") {
   void getWorkers(onProgress).catch(() => {});
+  if (lang === "ja") void getJaTitle().catch(() => {});
 }
 
 async function toBitmap(file: Blob): Promise<ImageBitmap> {
@@ -105,8 +127,9 @@ function strip(img: Source, x: number, y: number, w: number, h: number, targetH:
  * `card` must be cropped to the card itself. Roughly a quarter of a whole-card
  * read.
  */
-export async function readStrips(card: Source, attempt = 0, withBody = false): Promise<CardText> {
-  const { title, small } = await getWorkers();
+export async function readStrips(card: Source, attempt = 0, withBody = false, lang: ScanLang = "en"): Promise<CardText> {
+  const { title: enTitle, small } = await getWorkers();
+  const title = lang === "ja" ? await getJaTitle() : enTitle;
   const W = card.width;
   const H = card.height;
   // Title colours vary wildly, so alternate plain and high-contrast reads
@@ -139,7 +162,7 @@ function cardBox(img: Source, share: number): [number, number, number, number] {
  * Reads a card photo. Assumes the card fills most of the picture, as the tips
  * ask; `thorough` adds a slow whole-picture read for photos that didn't match.
  */
-export async function readCard(file: Blob, thorough = false): Promise<CardText> {
+export async function readCard(file: Blob, thorough = false, lang: ScanLang = "en"): Promise<CardText> {
   const img = await toBitmap(file);
   try {
     // The card fills "most" of a photo: try it filling nearly all, then a
@@ -147,7 +170,7 @@ export async function readCard(file: Blob, thorough = false): Promise<CardText> 
     const reads: CardText[] = [];
     for (const share of [0.97, 0.8]) {
       const [x, y, w, h] = cardBox(img, share);
-      reads.push(await readStrips(draw(img, x, y, w, h, Math.min(1, 1200 / w), false), reads.length));
+      reads.push(await readStrips(draw(img, x, y, w, h, Math.min(1, 1200 / w), false), reads.length, false, lang));
     }
     const read = { title: reads.map((r) => r.title.trim()).join("\n"), bottom: reads.map((r) => r.bottom).join("\n") };
     if (!thorough) return read;

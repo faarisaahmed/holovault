@@ -6,11 +6,13 @@ import { ConditionPicker, useStickyCondition } from "@/components/condition-pick
 import { SearchBox, Toggle } from "@/components/controls";
 import { finishShort } from "@/components/finish";
 import { AddedToast, type Added } from "@/components/toast";
+import { WantButton } from "@/components/want-button";
 import { usd } from "@/lib/format";
 import { requireUser } from "@/lib/server/auth.server";
 import { handleCardAction, type CardActionResult } from "@/lib/server/card-actions.server";
 import { finishPrices, finishesFor, searchCards } from "@/lib/server/catalog.server";
 import { getSettings, ownedCounts } from "@/lib/server/collection.server";
+import { wishedCards } from "@/lib/server/wishlist.server";
 import type { Region } from "@/lib/types";
 
 export const meta: Route.MetaFunction = () => [{ title: "Add cards — Shadowless" }];
@@ -24,7 +26,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   const found = q.trim().length >= 2 ? searchCards(q, region === "ja" ? "ja" : "en", 60) : [];
   const prices = finishPrices(found.map((c) => c.id));
   const owned = await ownedCounts(user.id, found.map((c) => c.id));
-  const cards: (AddableCard & { owned: Record<string, number> })[] = found.map((c) => {
+  const wished = await wishedCards(user.id, found.map((c) => c.id));
+  const cards: (AddableCard & { owned: Record<string, number>; wanted: boolean })[] = found.map((c) => {
     const p = prices.get(c.id);
     return {
       id: c.id,
@@ -35,6 +38,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       image: c.image,
       finishes: finishesFor(c, p).map((f) => ({ name: f, price: p?.get(f) ?? (f === "Normal" || f === "Holofoil" ? c.marketPrice : null) })),
       owned: Object.fromEntries(owned.get(c.id) ?? []),
+      wanted: wished.has(c.id),
     };
   });
   return { q, region, cards, defaultCondition: settings.defaultCondition };
@@ -137,7 +141,7 @@ export default function AddCards({ loaderData }: Route.ComponentProps) {
                     </div>
                     <div className="mt-1 flex flex-wrap gap-1">
                       {c.finishes.map((f) => (
-                        <quick.Form method="post" key={f.name}>
+                        <quick.Form method="post" action="/add" key={f.name}>
                           <input type="hidden" name="intent" value="add" />
                           <input type="hidden" name="cardId" value={c.id} />
                           <input type="hidden" name="finish" value={f.name} />
@@ -152,6 +156,7 @@ export default function AddCards({ loaderData }: Route.ComponentProps) {
                           </button>
                         </quick.Form>
                       ))}
+                      <WantButton cardId={c.id} wanted={c.wanted} />
                     </div>
                   </div>
                 )}

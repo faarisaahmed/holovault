@@ -4,7 +4,9 @@ import { CopyBadge, finishShort } from "@/components/finish";
 import { usd } from "@/lib/format";
 import { getSessionUser } from "@/lib/server/auth.server";
 import { getSettings, totals, valuedCollection } from "@/lib/server/collection.server";
+import { moversFor } from "@/lib/server/prices.server";
 import { mySets } from "@/lib/server/progress.server";
+import { wishlist } from "@/lib/server/wishlist.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await getSessionUser(request);
@@ -35,9 +37,23 @@ export async function loader({ request }: Route.LoaderArgs) {
     (i) => !i.grader && (i.condition === "M" || i.condition === "NM") && (i.marketNm ?? 0) >= gradingCost,
   ).length;
 
+  const moves = await moversFor(items);
+  const lean = (m: NonNullable<typeof moves>["up"][number]) => ({
+    id: m.item.id,
+    name: m.item.card?.name ?? m.item.cardId,
+    set: m.item.card?.setName ?? "",
+    image: m.item.card?.image ?? null,
+    now: m.now,
+    change: m.change,
+    delta: m.delta,
+  });
+  const wishes = await wishlist(user.id);
+
   return {
     signedIn: true as const,
     name: user.name,
+    movers: moves ? { days: moves.days, total: moves.total, up: moves.up.map(lean), down: moves.down.map(lean) } : null,
+    wishFlags: wishes.filter((w) => w.flag).map((w) => ({ id: w.id, name: w.card.name, price: w.price, flag: w.flag })),
     totals: t,
     top,
     bySet: [...bySet.entries()].map(([id, s]) => ({ id, ...s })).sort((a, b) => b.value - a.value).slice(0, 8),
@@ -49,7 +65,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export default function Home({ loaderData }: Route.ComponentProps) {
   if (!loaderData.signedIn) return <Landing />;
-  const { name, totals: t, top, bySet, sets, recent, gradeable } = loaderData;
+  const { name, totals: t, top, bySet, sets, recent, gradeable, movers, wishFlags } = loaderData;
   const gain = t.costKnown ? t.value - t.cost : null;
   const maxSet = bySet[0]?.value || 1;
 
@@ -137,6 +153,15 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         </section>
 
         <aside className="space-y-6">
+          {wishFlags.length ? (
+            <Link to="/wishlist" className="block rounded-xl border border-good/30 bg-good/10 px-3 py-2.5 text-xs hover:border-good">
+              <div className="font-semibold text-good">
+                ♥ {wishFlags.length} wishlist {wishFlags.length === 1 ? "card is" : "cards are"} worth a look
+              </div>
+              <div className="mt-0.5 truncate text-ink-300">{wishFlags.map((w) => w.name).join(", ")}</div>
+            </Link>
+          ) : null}
+          <Movers movers={movers} />
           <section>
             <h2 className="mb-2 text-sm font-semibold text-ink-200">Value by set</h2>
             <ul className="space-y-1.5">
@@ -187,6 +212,57 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         </aside>
       </div>
     </>
+  );
+}
+
+function Movers({
+  movers,
+}: {
+  movers: {
+    days: number;
+    total: number;
+    up: { id: string; name: string; set: string; image: string | null; now: number; change: number; delta: number }[];
+    down: { id: string; name: string; set: string; image: string | null; now: number; change: number; delta: number }[];
+  } | null;
+}) {
+  if (!movers) return null;
+  const row = (m: (typeof movers.up)[number]) => (
+    <li key={m.id} className="flex items-center gap-2 text-xs">
+      {m.image ? <img src={m.image} alt="" loading="lazy" className="h-8 w-auto rounded-sm" /> : null}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-ink-200">{m.name}</span>
+        <span className="block truncate text-[10px] text-ink-500">{m.set}</span>
+      </span>
+      <span className="tnum shrink-0 text-right">
+        <span className={`block font-semibold ${m.change >= 0 ? "text-good" : "text-rose-400"}`}>
+          {m.change >= 0 ? "↑" : "↓"} {Math.abs(m.change * 100).toFixed(0)}%
+        </span>
+        <span className="block text-[10px] text-ink-500">{usd(m.now)}</span>
+      </span>
+    </li>
+  );
+  return (
+    <section>
+      <h2 className="mb-2 flex items-baseline gap-2 text-sm font-semibold text-ink-200">
+        {movers.days >= 7 ? "This week" : "Price moves"}
+        {movers.days > 0 ? (
+          <span className={`tnum text-xs font-normal ${movers.total >= 0 ? "text-good" : "text-rose-400"}`}>
+            {movers.total >= 0 ? "+" : "−"}
+            {usd(Math.abs(movers.total))} {movers.days < 7 ? `over ${movers.days} day${movers.days === 1 ? "" : "s"}` : ""}
+          </span>
+        ) : null}
+      </h2>
+      {movers.days === 0 ? (
+        <p className="text-xs text-ink-500">Tracking your cards' prices from today. Risers and fallers show up after the next daily update.</p>
+      ) : !movers.up.length && !movers.down.length ? (
+        <p className="text-xs text-ink-500">Nothing moved more than 3% in the last {movers.days} days.</p>
+      ) : (
+        <ul className="space-y-2">
+          {movers.up.slice(0, 3).map(row)}
+          {movers.down.slice(0, 3).map(row)}
+        </ul>
+      )}
+    </section>
   );
 }
 

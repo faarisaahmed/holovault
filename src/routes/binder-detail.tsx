@@ -9,6 +9,10 @@ import { paginate, planSlots, type Slot } from "@/lib/binder";
 import { requireUser } from "@/lib/server/auth.server";
 import { binderCandidates, binderInput, deleteBinder, getBinder, toRecord, updateBinder } from "@/lib/server/binder.server";
 import { listSets, listSpecies } from "@/lib/server/catalog.server";
+import { wishedCards } from "@/lib/server/wishlist.server";
+import { binderShareToken, setBinderShare } from "@/lib/server/share.server";
+import { ShareLink } from "@/components/share-link";
+import { WantButton } from "@/components/want-button";
 
 export const meta: Route.MetaFunction = ({ loaderData }) => [{ title: `${loaderData?.binder.name ?? "Binder"} — Shadowless` }];
 
@@ -24,10 +28,15 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const spread = Math.min(spreads, Math.max(1, Number(new URL(request.url).searchParams.get("spread")) || 1));
   const owned = slots.filter((s) => s.owned).length;
   const missingCost = slots.filter((s) => !s.owned && s.card?.price != null).reduce((t, s) => t + s.card!.price!, 0);
+  const spreadPages = pages.slice((spread - 1) * 2, spread * 2);
+  const missingIds = spreadPages.flat().filter((s) => !s.owned && s.card).map((s) => s.card!.id);
+  const wanted = [...(await wishedCards(user.id, missingIds)).keys()];
   return {
+    wanted,
+    shareToken: await binderShareToken(user.id, b.id),
     binder: { id: b.id, name: b.name, rows: b.rows, cols: b.cols, config: b.config },
     // Only the open spread's pockets go to the browser.
-    spreadPages: pages.slice((spread - 1) * 2, spread * 2),
+    spreadPages,
     firstPage: (spread - 1) * 2 + 1,
     spread,
     spreads,
@@ -46,6 +55,10 @@ export async function action({ request, params }: Route.ActionArgs) {
   if (form.get("intent") === "delete") {
     await deleteBinder(user.id, params.binderId);
     throw redirect("/binders");
+  }
+  if (form.get("intent") === "share") {
+    await setBinderShare(user.id, params.binderId, form.get("on") === "1");
+    return { ok: true };
   }
   const parsed = binderInput.safeParse(Object.fromEntries(form));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
@@ -73,6 +86,10 @@ export default function BinderDetail({ loaderData: d, actionData }: Route.Compon
         <button onClick={() => setEditing((e) => !e)} className="ml-auto rounded-md border border-ink-700 px-3 py-1.5 text-xs hover:border-accent">
           {editing ? "Close settings" : "Binder settings"}
         </button>
+      </div>
+
+      <div className="mb-4">
+        <ShareLink path={d.shareToken ? `/s/b/${d.shareToken}` : null} what="this binder" />
       </div>
 
       {editing ? (
@@ -110,7 +127,7 @@ export default function BinderDetail({ loaderData: d, actionData }: Route.Compon
         <>
           <div className="grid gap-4 lg:grid-cols-2">
             {d.spreadPages.map((page, i) => (
-              <Page key={i} slots={page} rows={d.binder.rows} cols={d.binder.cols} number={d.firstPage + i} />
+              <Page key={i} slots={page} rows={d.binder.rows} cols={d.binder.cols} number={d.firstPage + i} wanted={d.wanted} />
             ))}
           </div>
           <div className="mt-4 flex items-center justify-center gap-3 text-xs">
@@ -130,7 +147,7 @@ export default function BinderDetail({ loaderData: d, actionData }: Route.Compon
   );
 }
 
-function Page({ slots, rows, cols, number }: { slots: Slot[]; rows: number; cols: number; number: number }) {
+function Page({ slots, rows, cols, number, wanted }: { slots: Slot[]; rows: number; cols: number; number: number; wanted: string[] }) {
   const pockets = Array.from({ length: rows * cols }, (_, i) => slots[i] ?? null);
   return (
     <div className="rounded-xl border border-ink-700 bg-ink-900 p-3 shadow-inner">
@@ -139,6 +156,11 @@ function Page({ slots, rows, cols, number }: { slots: Slot[]; rows: number; cols
           <div key={s?.key ?? `empty-${i}`} className="relative aspect-[245/342] overflow-hidden rounded-md bg-ink-850 ring-1 ring-ink-800" title={s?.card ? `${s.card.name} · ${s.card.setName} ${s.card.localId}` : s?.label}>
             {s?.card?.image ? (
               <img src={s.card.image} alt={s.card.name} loading="lazy" className={`h-full w-full object-cover ${s.owned ? "" : "opacity-25 grayscale"}`} />
+            ) : null}
+            {s && !s.owned && s.card ? (
+              <span className="absolute right-1 top-1">
+                <WantButton cardId={s.card.id} wanted={wanted.includes(s.card.id)} compact />
+              </span>
             ) : null}
             {s && !s.owned ? (
               <span className="absolute inset-x-0 bottom-0 bg-black/70 px-1 py-0.5 text-center text-[9px] text-ink-200">

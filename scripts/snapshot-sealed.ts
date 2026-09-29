@@ -1,9 +1,11 @@
 import { getDb } from "../src/lib/db.server";
 import { getUserDb } from "../src/lib/server/db.server";
+import { recordCardPrices } from "../src/lib/server/prices.server";
 import { sealedPrice } from "../src/lib/server/schema";
 
 /**
- * Records today's market price for every priced sealed product into the user
+ * Records today's market price for every priced sealed product (and every
+ * owned or wanted card printing) into the user
  * database, building the price history the sealed charts and signals use.
  * Runs after each ingest (the daily rebuild). One row per product per day;
  * re-running the same day changes nothing.
@@ -29,6 +31,8 @@ async function main() {
     written += chunk.length;
   }
   console.log(`sealed prices recorded for ${day}: ${written} products`);
+  // Card prices for everything someone owns or wants: the weekly movers.
+  console.log(`card prices recorded for ${day}: ${await recordCardPrices()} printings`);
   process.exit(0);
 }
 

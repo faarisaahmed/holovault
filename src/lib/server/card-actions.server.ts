@@ -1,9 +1,11 @@
 import { addItem, decrementItem, itemInput } from "./collection.server";
 import { finishPrices, finishesFor, getCard } from "./catalog.server";
+import { addWish } from "./wishlist.server";
 
 export type CardActionResult =
   | { ok: true; added: { id: string; name: string; finish: string; label: string; quantity: number; at: number } }
   | { ok: true; undone: true }
+  | { ok: true; wished: string }
   | { error: string };
 
 /**
@@ -29,6 +31,10 @@ export async function handleCardAction(userId: string, form: FormData): Promise<
       ok: true,
       added: { id, name: card.name, finish: parsed.data.finish, label, quantity: parsed.data.quantity, at: Date.now() },
     };
+  }
+  if (intent === "want") {
+    const r = await addWish(userId, Object.fromEntries([...form.entries()].filter(([, v]) => v !== "")));
+    return "error" in r ? r : { ok: true, wished: r.name };
   }
   if (intent === "undo") {
     const id = String(form.get("id") ?? "");

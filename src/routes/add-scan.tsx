@@ -84,7 +84,7 @@ export default function ScanCards({ loaderData }: Route.ComponentProps) {
   const camera = useRef<HTMLInputElement>(null);
   const library = useRef<HTMLInputElement>(null);
 
-  useEffect(() => preloadOcr((p) => setEngine(p)), []);
+  useEffect(() => preloadOcr((p) => setEngine(p), region === "ja" ? "ja" : "en"), [region]);
   // Free the photo previews when leaving the page.
   const urls = useRef<string[]>([]);
   useEffect(() => () => urls.current.forEach((u) => URL.revokeObjectURL(u)), []);
@@ -189,7 +189,7 @@ function ScanRow({ shot, region, condition, onRemove }: { shot: Shot; region: Re
       if (!live) return;
       setStatus("reading");
       try {
-        const t = await readCard(shot.file, thorough);
+        const t = await readCard(shot.file, thorough, region === "ja" ? "ja" : "en");
         if (!live) return;
         setRead(t);
         setStatus("matching");
@@ -200,7 +200,7 @@ function ScanRow({ shot, region, condition, onRemove }: { shot: Shot; region: Re
     return () => {
       live = false;
     };
-  }, [shot.file, thorough]);
+  }, [shot.file, thorough, region]);
 
   // Re-match when the text arrives or the language switch changes.
   useEffect(() => {

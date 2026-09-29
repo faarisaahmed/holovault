@@ -15,6 +15,13 @@
       "when": 1790641332906,
       "tag": "0001_sealed",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790721850155,
+      "tag": "0002_social_trade",
+      "breakpoints": true
     }
   ]
 }
