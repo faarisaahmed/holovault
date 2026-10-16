@@ -4,7 +4,8 @@ import { finishShort } from "@/components/finish";
 import { usd } from "@/lib/format";
 import { requireUser } from "@/lib/server/auth.server";
 import { addItem, getSettings, itemInput } from "@/lib/server/collection.server";
-import { finishPrices, finishesFor, getCard } from "@/lib/server/catalog.server";
+import { finishPrices, finishesFor, getCard, productIds } from "@/lib/server/catalog.server";
+import { affiliateIdsFromEnv, tcgplayerLink } from "@/lib/affiliate";
 import { addWish, removeWish, setWishTarget, wishlist, type Wish } from "@/lib/server/wishlist.server";
 
 export const meta: Route.MetaFunction = () => [{ title: "Wishlist — Shadowless" }];
@@ -15,7 +16,17 @@ export async function loader({ request }: Route.LoaderArgs) {
     (a, b) => Number(!!b.flag) - Number(!!a.flag) || (b.price ?? 0) - (a.price ?? 0),
   );
   const settings = await getSettings(user.id);
-  return { wishes, defaultCondition: settings.defaultCondition };
+  const products = productIds([...new Set(wishes.map((w) => w.card.id))]);
+  const affiliate = affiliateIdsFromEnv();
+  // The wished printing's listing, or the card's first listing for "any printing".
+  const buyUrls = Object.fromEntries(
+    wishes.flatMap((w) => {
+      const byFinish = products.get(w.card.id);
+      const id = (w.finish ? byFinish?.get(w.finish) : undefined) ?? byFinish?.values().next().value;
+      return id ? [[w.id, tcgplayerLink(`https://www.tcgplayer.com/product/${id}`, affiliate)]] : [];
+    }),
+  );
+  return { wishes, defaultCondition: settings.defaultCondition, buyUrls };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -47,7 +58,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Wishlist({ loaderData, actionData }: Route.ComponentProps) {
-  const { wishes, defaultCondition } = loaderData;
+  const { wishes, defaultCondition, buyUrls } = loaderData;
   const total = wishes.reduce((s, w) => s + (w.owned ? 0 : (w.price ?? 0)), 0);
   const flagged = wishes.filter((w) => w.flag).length;
 
@@ -80,7 +91,7 @@ export default function Wishlist({ loaderData, actionData }: Route.ComponentProp
       ) : (
         <ul className="divide-y divide-ink-850 overflow-hidden rounded-xl border border-ink-800 bg-ink-900">
           {wishes.map((w) => (
-            <WishRow key={w.id} w={w} defaultCondition={defaultCondition} />
+            <WishRow key={w.id} w={w} defaultCondition={defaultCondition} buyUrl={buyUrls[w.id]} />
           ))}
         </ul>
       )}
@@ -92,7 +103,7 @@ export default function Wishlist({ loaderData, actionData }: Route.ComponentProp
   );
 }
 
-function WishRow({ w, defaultCondition }: { w: Wish; defaultCondition: string }) {
+function WishRow({ w, defaultCondition, buyUrl }: { w: Wish; defaultCondition: string; buyUrl?: string }) {
   const f = useFetcher();
   const busy = f.state !== "idle";
   const change = w.price != null && w.priceAtAdd ? w.price / w.priceAtAdd - 1 : null;
@@ -137,7 +148,17 @@ function WishRow({ w, defaultCondition }: { w: Wish; defaultCondition: string })
           />
           <button className="h-8 rounded-md border border-ink-700 px-2 text-[11px] text-ink-300 hover:border-accent">Set</button>
         </f.Form>
-        <Form method="post" className="ml-auto sm:ml-0">
+        {buyUrl ? (
+          <a
+            href={buyUrl}
+            target="_blank"
+            rel="noreferrer sponsored"
+            className="ml-auto grid h-8 place-items-center rounded-md border border-ink-700 px-2.5 text-[11px] text-ink-300 hover:border-accent hover:text-accent sm:ml-0"
+          >
+            Buy ↗
+          </a>
+        ) : null}
+        <Form method="post" className={buyUrl ? "" : "ml-auto sm:ml-0"}>
           <input type="hidden" name="intent" value="got" />
           <input type="hidden" name="id" value={w.id} />
           <input type="hidden" name="cardId" value={w.card.id} />

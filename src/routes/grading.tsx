@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/server/auth.server";
 import { getSettings, valuedCollection } from "@/lib/server/collection.server";
 import { gradedPrices, gradedSourceConfigured, refreshGraded } from "@/lib/server/graded.server";
 import { gradingCall, type GradingVerdict } from "@/lib/valuation";
+import { affiliateIdsFromEnv, ebayLink } from "@/lib/affiliate";
 
 export const meta: Route.MetaFunction = () => [{ title: "Grading — Shadowless" }];
 
@@ -25,6 +26,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const byValue = [...raw].sort((a, b) => b.unitValue! - a.unitValue!);
   const looked = await refreshGraded(byValue.map((i) => i.cardId), 6);
   const comps = await gradedPrices(raw.map((i) => i.cardId));
+  const affiliate = affiliateIdsFromEnv();
 
   const rows = byValue
     .map((i) => {
@@ -44,7 +46,7 @@ export async function loader({ request }: Route.LoaderArgs) {
         psa9: psa?.get("9") ?? null,
         psa10: psa?.get("10") ?? null,
         ...call,
-        soldUrl: `https://www.ebay.com/sch/i.html?_nkw=${q}&LH_Sold=1&LH_Complete=1`,
+        soldUrl: ebayLink(`https://www.ebay.com/sch/i.html?_nkw=${q}&LH_Sold=1&LH_Complete=1`, affiliate),
       };
     })
     .filter((r) => (show === "worth" ? r.verdict === "grade" || r.verdict === "maybe" || (r.verdict === "unknown" && r.raw * 2 >= r.breakEven) : true))

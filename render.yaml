@@ -33,3 +33,8 @@ services:
         sync: false
       - key: RIPWISE_URL
         sync: false
+      # Optional: affiliate tags on outbound shop links (off when unset).
+      - key: TCGPLAYER_AFFILIATE_URL
+        sync: false
+      - key: EBAY_CAMPAIGN_ID
+        sync: false

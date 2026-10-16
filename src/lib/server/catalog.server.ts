@@ -155,6 +155,27 @@ export function finishPrices(ids: string[]): Map<string, Map<string, number | nu
   return out;
 }
 
+/** TCGplayer product IDs per card and printing, for buy links. */
+export function productIds(ids: string[]): Map<string, Map<string, number>> {
+  const out = new Map<string, Map<string, number>>();
+  const db = getDb();
+  for (let i = 0; i < ids.length; i += 500) {
+    const chunk = ids.slice(i, i + 500);
+    const rows = db
+      .prepare(
+        `SELECT card_id, variant, tcgplayer_product_id FROM card_prices
+         WHERE tcgplayer_product_id IS NOT NULL AND card_id IN (${chunk.map(() => "?").join(",")})`,
+      )
+      .all(...chunk) as { card_id: string; variant: string; tcgplayer_product_id: number }[];
+    for (const r of rows) {
+      const m = out.get(r.card_id) ?? new Map();
+      m.set(r.variant, r.tcgplayer_product_id);
+      out.set(r.card_id, m);
+    }
+  }
+  return out;
+}
+
 /**
  * The printings a card exists in. TCGplayer's listing is the source; a card
  * it doesn't price still exists in at least one printing, guessed from its

@@ -4,6 +4,7 @@ import { Toggle } from "@/components/controls";
 import { PriceChart } from "@/components/price-chart";
 import { Gain, SealedIntro, SignalBadge } from "@/components/sealed-ui";
 import { Breadcrumbs } from "@/components/ui";
+import { affiliateIdsFromEnv, tcgplayerLink } from "@/lib/affiliate";
 import { usd } from "@/lib/format";
 import { CATEGORY_LABELS, signal, trend } from "@/lib/sealed";
 import { requireUser } from "@/lib/server/auth.server";
@@ -41,7 +42,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
   return {
     enabled: true as const,
-    product,
+    product: { ...product, url: product.url ? tcgplayerLink(product.url, affiliateIdsFromEnv()) : product.url },
     range: RANGES[range] ? range : "90",
     points: points.filter((p) => p.day >= since),
     recordedDays: points.length,
@@ -116,7 +117,7 @@ export default function SealedProduct({ loaderData: d, actionData }: Route.Compo
             {p.url ? (
               <>
                 {" · "}
-                <a href={p.url} target="_blank" rel="noopener" className="underline hover:text-accent">
+                <a href={p.url} target="_blank" rel="noopener sponsored" className="underline hover:text-accent">
                   TCGplayer ↗
                 </a>
               </>

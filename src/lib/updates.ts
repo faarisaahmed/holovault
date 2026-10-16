@@ -14,6 +14,14 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    date: "2026-10-16",
+    title: "Buy straight from your wishlist",
+    items: [
+      "Each wishlist card has a Buy button that opens its TCGplayer listing, so when one drops under your target you can grab it.",
+    ],
+    link: { to: "/wishlist", label: "Open your wishlist" },
+  },
+  {
     date: "2026-09-29",
     title: "Wishlist, trades and sharing",
     items: [

@@ -21,6 +21,7 @@ import { lastIngest } from "@/lib/server/catalog.server";
 import { ripwiseUrl } from "@/lib/server/graded.server";
 import { sealedEnabled } from "@/lib/server/sealed.server";
 import { hasNewUpdates } from "@/lib/server/updates.server";
+import { affiliateIdsFromEnv, hasAffiliate } from "@/lib/affiliate";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await getSessionUser(request);
@@ -32,6 +33,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     news: user ? await hasNewUpdates(user.id, user.createdAt ?? 0) : false,
     ingested: lastIngest(),
     ripwise: ripwiseUrl() ?? null,
+    affiliateLinks: hasAffiliate(affiliateIdsFromEnv()),
   };
 }
 
@@ -114,7 +116,7 @@ const NAV = [
 ];
 
 export default function App({ loaderData }: Route.ComponentProps) {
-  const { user, ripwise, sealed, news } = loaderData;
+  const { user, ripwise, sealed, news, affiliateLinks } = loaderData;
   const nav = sealed ? [...NAV, { to: "/sealed", label: "Sealed" }] : NAV;
   // Pages like sign-in fill the whole screen with their own layout.
   const bare = useMatches().some((m) => (m.handle as { bare?: boolean } | undefined)?.bare);
@@ -197,6 +199,12 @@ export default function App({ loaderData }: Route.ComponentProps) {
         Not produced by, endorsed by, or affiliated with Nintendo, Creatures Inc., GAME FREAK inc.,
         The Pokémon Company or TCGplayer. Pokémon and all related names are trademarks of their
         respective owners.
+        {affiliateLinks ? (
+          <>
+            {" "}Buy links to TCGplayer and eBay are affiliate links: buying through them may earn
+            Shadowless a commission, at no extra cost to you.
+          </>
+        ) : null}
       </footer>
     </>
   );
