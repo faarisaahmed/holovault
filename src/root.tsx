@@ -91,7 +91,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         {/* TCGplayer affiliate program (Impact) site ownership check. */}
-        <meta name="impact-site-verification" content="7e6fc6f9-1938-4d7e-ac16-80fa0cbfb3c1" {...{ value: "7e6fc6f9-1938-4d7e-ac16-80fa0cbfb3c1" }} />
+        <meta name="impact-site-verification" content="d5f29551-439f-4ae2-bafe-539653f081a0" {...{ value: "d5f29551-439f-4ae2-bafe-539653f081a0" }} />
         <Meta />
         <Links />
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
