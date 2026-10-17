@@ -7,15 +7,18 @@ import { sealedEnabled, setSealedEnabled } from "@/lib/server/sealed.server";
 import { collectionShare, setCollectionShare } from "@/lib/server/share.server";
 import { ShareLink } from "@/components/share-link";
 import { safeNext } from "@/lib/server/safe-redirect";
+import { activeSessionCount } from "@/lib/server/sessions.server";
 
 export const meta: Route.MetaFunction = () => [{ title: "Settings — Shadowless" }];
 
 export async function loader({ request }: Route.LoaderArgs) {
   const user = await requireUser(request);
   const auth = await getAuth();
-  const [accounts, sessions, settings, sealed, share] = await Promise.all([
+  // Not auth.api.listSessions: Better Auth only answers that for a sign-in
+  // under a day old, which made this page fail for anyone signed in longer.
+  const [accounts, sessionCount, settings, sealed, share] = await Promise.all([
     auth.api.listUserAccounts({ headers: request.headers }),
-    auth.api.listSessions({ headers: request.headers }),
+    activeSessionCount(user.id),
     getSettings(user.id),
     sealedEnabled(user.id),
     collectionShare(user.id),
@@ -25,7 +28,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     user: { name: user.name, email: user.email, emailVerified: user.emailVerified },
     hasPassword: providers.includes("credential"),
     hasGoogle: providers.includes("google"),
-    sessionCount: sessions.length,
+    sessionCount,
     settings,
     sealed,
     share,
@@ -90,6 +93,10 @@ export async function action({ request }: Route.ActionArgs): Promise<Response | 
       const google = accounts.find((a) => a.providerId === "google");
       if (!google) return { section: "accounts", error: "Google isn't linked." };
       const res = await auth.api.unlinkAccount({ body: { accountId: google.accountId }, headers, asResponse: true });
+      if (res.status === 403) {
+        // Unlinking needs a recent sign-in.
+        return { section: "accounts", error: "For safety, sign out and back in, then unlink Google." };
+      }
       if (!res.ok) return { section: "accounts", error: await message(res, "Set a password before unlinking Google, or you'd be locked out.") };
       return { section: "accounts", ok: "Google unlinked." };
     }
