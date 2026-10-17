@@ -87,7 +87,7 @@ export default function Grading({ loaderData: d }: Route.ComponentProps) {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Toggle name="show" value={d.show} options={[{ value: "worth", label: "Worth a look" }, { value: "all", label: `All ${d.totalRaw} Mint / NM` }]} />
         {!d.compsConfigured ? (
-          <span className="text-[11px] text-ink-500">Graded sold prices aren't connected on this server, so cards show break-even prices instead.</span>
+          <span className="text-[11px] text-ink-500">Graded prices aren't connected on this server, so cards show break-even prices instead.</span>
         ) : null}
       </div>
 
@@ -187,7 +187,7 @@ export default function Grading({ loaderData: d }: Route.ComponentProps) {
         </>
       )}
       <p className="mt-3 max-w-3xl text-[11px] leading-relaxed text-ink-500">
-        Graded prices are averages of recent eBay sold listings, refreshed weekly
+        Graded prices are typical asking prices of current eBay listings, refreshed weekly
         {d.stillLooking ? `; comps for your other cards are being looked up a few at a time as you visit` : ""}.
         Grading only makes sense for cards that are genuinely Mint: centring, corners, edges and surface all count.
         This is a guide, not a guarantee.

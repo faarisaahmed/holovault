@@ -21,7 +21,7 @@ export interface TradeCard {
   image: string | null;
   cardPrice: number | null;
   finishes: { name: string; price: number | null }[];
-  /** PSA sold averages by grade, when comps exist. */
+  /** Typical PSA prices by grade, when there are listings. */
   psa: Record<string, number>;
   rarityKey: string | null;
   /** When it's a copy from your collection: which one, and how it's stored. */
@@ -254,8 +254,8 @@ export default function Trade({ loaderData, actionData }: Route.ComponentProps) 
         {actionData && "error" in actionData ? <span className="text-xs text-rose-300">{actionData.error}</span> : null}
       </div>
       <p className="mt-3 max-w-3xl text-[11px] text-ink-500">
-        Values are TCGplayer market for the printing, with typical discounts for played condition. Slabs use PSA sold
-        averages when there are comps, otherwise the raw price. Only cards picked from your collection are removed when
+        Values are TCGplayer market for the printing, with typical discounts for played condition. Slabs use typical PSA
+        prices from eBay listings when there are some, otherwise the raw price. Only cards picked from your collection are removed when
         you record a trade.
       </p>
     </>

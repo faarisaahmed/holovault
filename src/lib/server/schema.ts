@@ -178,7 +178,7 @@ export const userSettings = pgTable("user_settings", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
-/** Graded sold prices, cached from Ripwise's eBay comps for a week. */
+/** Graded prices, cached from Ripwise's eBay lookups for a week. */
 export const gradedPrice = pgTable(
   "graded_price",
   {

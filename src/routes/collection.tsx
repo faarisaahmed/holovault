@@ -365,7 +365,7 @@ export default function Collection({ loaderData, actionData }: Route.ComponentPr
       <RemovedToast key={removedData?.at ?? 0} data={removedData} />
       <p className="mt-3 text-[11px] text-ink-500">
         ~ played-condition value, estimated from typical TCGplayer discounts on the Near Mint price. * your own value.
-        Slabs use PSA sold prices when comps exist, otherwise the raw price.
+        Slabs use PSA prices from eBay listings when there are some, otherwise the raw price.
       </p>
     </>
   );

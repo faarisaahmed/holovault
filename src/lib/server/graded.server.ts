@@ -3,11 +3,11 @@ import { getUserDb } from "./db.server";
 import { gradedFetch, gradedPrice } from "./schema";
 
 /**
- * PSA sold prices. The sibling Ripwise app already scrapes and caches
- * eBay comps (/api/psa/:cardId); this app asks it rather than scraping eBay a
- * second time, and keeps what it gets for a week. Without RIPWISE_URL,
- * or when eBay blocks Ripwise's host, cards simply have no comps and
- * the grading page falls back to break-even figures.
+ * PSA graded prices. The sibling Ripwise app already looks them up through
+ * eBay's Browse API and caches them (/api/psa/:cardId); this app asks it
+ * rather than calling eBay a second time, and keeps what it gets for a week.
+ * Without RIPWISE_URL, or before Ripwise has eBay keys, cards simply have no
+ * graded prices and the grading page falls back to break-even figures.
  */
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -46,7 +46,12 @@ export async function refreshGraded(cardIds: string[], max = 6): Promise<number>
     .select()
     .from(gradedFetch)
     .where(inArray(gradedFetch.cardId, [...new Set(cardIds)]));
-  const fresh = new Set(seen.filter((s) => Date.now() - s.fetchedAt.getTime() < TTL_MS).map((s) => s.cardId));
+  // "unconfigured" means Ripwise has no eBay keys yet; ask again once it might.
+  const fresh = new Set(
+    seen
+      .filter((s) => s.status !== "unconfigured" && Date.now() - s.fetchedAt.getTime() < TTL_MS)
+      .map((s) => s.cardId),
+  );
   const todo = [...new Set(cardIds)].filter((id) => !fresh.has(id)).slice(0, max);
 
   await Promise.all(
