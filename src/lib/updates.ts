@@ -14,6 +14,14 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    date: "2026-10-17",
+    title: "Graded prices are back",
+    items: [
+      "PSA prices on the grading page work again, from current eBay listings, listed from PSA 10 down.",
+    ],
+    link: { to: "/grading", label: "Open grading" },
+  },
+  {
     date: "2026-10-16",
     title: "Foil is the new default look",
     items: [
