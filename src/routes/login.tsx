@@ -247,9 +247,15 @@ export default function Login({ loaderData }: Route.ComponentProps) {
         </p>
       ) : mode === "up" ? (
         <p className="mt-6 text-center text-[11px] leading-relaxed text-ink-500">
-          Your collection is only ever visible to you. You can export or delete everything from Settings at any time.
+          Your collection is only visible to you unless you share a link to it. You can export or delete everything
+          from Settings at any time.
         </p>
       ) : null}
+      <p className="mt-4 text-center text-[11px] text-ink-600">
+        <Link to="/privacy" className="hover:text-ink-300 hover:underline">
+          Privacy
+        </Link>
+      </p>
     </AuthShell>
   );
 }

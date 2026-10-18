@@ -5,6 +5,7 @@ import { PriceChart } from "@/components/price-chart";
 import { Gain, SealedIntro, SignalBadge } from "@/components/sealed-ui";
 import { Breadcrumbs } from "@/components/ui";
 import { affiliateIdsFromEnv, tcgplayerLink } from "@/lib/affiliate";
+import { useAffiliateLinks } from "@/root";
 import { usd } from "@/lib/format";
 import { CATEGORY_LABELS, signal, trend } from "@/lib/sealed";
 import { requireUser } from "@/lib/server/auth.server";
@@ -94,6 +95,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 
 export default function SealedProduct({ loaderData: d, actionData }: Route.ComponentProps) {
   const busy = useNavigation().state !== "idle";
+  const affiliateLinks = useAffiliateLinks();
   if (!d.enabled) return <SealedIntro />;
   const { product: p, ledger, trend: t } = d;
   const h = ledger.holding;
@@ -120,6 +122,7 @@ export default function SealedProduct({ loaderData: d, actionData }: Route.Compo
                 <a href={p.url} target="_blank" rel="noopener sponsored" className="underline hover:text-accent">
                   TCGplayer ↗
                 </a>
+                {affiliateLinks ? <span className="text-[10px] text-ink-500"> (affiliate link)</span> : null}
               </>
             ) : null}
           </p>

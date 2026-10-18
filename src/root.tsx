@@ -185,6 +185,10 @@ export default function App({ loaderData }: Route.ComponentProps) {
         <Link to="/whats-new" className="underline hover:text-ink-200">
           What's new
         </Link>
+        {" · "}
+        <Link to="/privacy" className="underline hover:text-ink-200">
+          Privacy
+        </Link>
         {" · "}Your collection is private to your account and never shared or sold. No ads, no analytics.
         Card data from TCGdex, market prices from TCGplayer via TCGCSV. Condition discounts are
         estimates.
@@ -220,6 +224,11 @@ export function useUser() {
 /** The sister site's address, when this deployment knows it. */
 export function useRipwiseUrl() {
   return useRouteLoaderData<typeof loader>("root")?.ripwise ?? null;
+}
+
+/** Whether buy links carry affiliate tags, so pages can say so next to them. */
+export function useAffiliateLinks() {
+  return useRouteLoaderData<typeof loader>("root")?.affiliateLinks ?? false;
 }
 
 export function SignOutButton() {

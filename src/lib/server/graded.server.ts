@@ -1,15 +1,16 @@
-import { inArray, sql } from "drizzle-orm";
+import { inArray, lt, sql } from "drizzle-orm";
 import { getUserDb } from "./db.server";
 import { gradedFetch, gradedPrice } from "./schema";
 
 /**
  * PSA graded prices. The sibling Ripwise app already looks them up through
  * eBay's Browse API and caches them (/api/psa/:cardId); this app asks it
- * rather than calling eBay a second time, and keeps what it gets for a week.
+ * rather than calling eBay a second time. eBay's API License Agreement (§8.1)
+ * lets listing information be at most six hours old, so that is the TTL.
  * Without RIPWISE_URL, or before Ripwise has eBay keys, cards simply have no
  * graded prices and the grading page falls back to break-even figures.
  */
-const TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const TTL_MS = 6 * 60 * 60 * 1000;
 
 /** Ripwise's address; PULL_TRACKER_URL is its name from before the rename. */
 export function ripwiseUrl(): string | undefined {
@@ -25,6 +26,9 @@ export async function gradedPrices(cardIds: string[]): Promise<Map<string, Map<s
   const out = new Map<string, Map<string, number>>();
   if (!cardIds.length) return out;
   const db = await getUserDb();
+  const cutoff = new Date(Date.now() - TTL_MS);
+  // Expired copies are deleted, not just hidden, as the agreement asks.
+  await db.delete(gradedPrice).where(lt(gradedPrice.fetchedAt, cutoff));
   const rows = await db.select().from(gradedPrice).where(inArray(gradedPrice.cardId, [...new Set(cardIds)]));
   for (const r of rows) {
     const m = out.get(r.cardId) ?? new Map<string, number>();
@@ -35,7 +39,7 @@ export async function gradedPrices(cardIds: string[]): Promise<Map<string, Map<s
 }
 
 /**
- * Looks up comps for cards not checked in the last week, a few at a time so
+ * Looks up comps for cards not checked within the TTL, a few at a time so
  * a page load never waits on dozens of slow scrapes.
  */
 export async function refreshGraded(cardIds: string[], max = 6): Promise<number> {
@@ -74,7 +78,7 @@ export async function refreshGraded(cardIds: string[], max = 6): Promise<number>
             .onConflictDoUpdate({ target: [gradedPrice.cardId, gradedPrice.grade], set: row });
         }
       } catch {
-        // Recorded below as "error" so a flaky upstream is retried next week, not every load.
+        // Recorded below as "error" so a flaky upstream is retried after the TTL, not every load.
       }
       await db
         .insert(gradedFetch)

@@ -14,6 +14,14 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    date: "2026-10-18",
+    title: "A plain-English privacy page",
+    items: [
+      "What Shadowless stores, who else is involved and how to export or delete it, all on one short page linked from the footer and sign-in.",
+    ],
+    link: { to: "/privacy", label: "Read it" },
+  },
+  {
     date: "2026-10-17",
     title: "Graded prices are back",
     items: [

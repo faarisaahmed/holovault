@@ -39,7 +39,7 @@ shares.
 - **Worth grading?** (`/grading`) — for raw Mint / Near Mint cards: *grade* when even a PSA 9 sells for more than
   the raw card plus your grading and shipping costs; *only if it 10s* when just a PSA 10 would; otherwise the
   break-even price a slab would need. Graded prices come from Ripwise's eBay comps
-  (`RIPWISE_URL`), cached for a week.
+  (`RIPWISE_URL`), kept for at most six hours.
 - **Sets** (`/sets`, `/sets/:id`) — completion for every set you own or track, as a set (one of each card) and as
   a master set (every printing), with the market cost to finish. The checklist dims what you're missing; click a
   printing to add it.
@@ -87,7 +87,7 @@ Authentication is [Better Auth](https://www.better-auth.com) (`src/lib/server/au
 | Card catalog, prices | SQLite (`data/pokemon.db`) | Rebuilt each deploy by `npm run ingest` — TCGdex + TCGCSV, same pipeline as Ripwise. Not in git. |
 | Accounts, collections, binders | Postgres (`DATABASE_URL`) | Schema in `src/lib/server/schema.ts`, migrations in `drizzle/`. |
 | Sealed price history | Postgres (`sealed_price`) | One row per sealed product per day, recorded by `npm run snapshot` after each ingest. No free historical source exists (TCGCSV's archive is offline), so charts start from the first recorded day and signals need 14 days. |
-| PSA sold prices | Postgres cache | From Ripwise's `/api/psa/:cardId`, a week at a time. |
+| PSA sold prices | Postgres cache | From Ripwise's `/api/psa/:cardId`, at most six hours old. |
 
 Locally, with no `DATABASE_URL`, an embedded Postgres ([PGlite](https://pglite.dev)) in `data/userdb` is created
 and migrated automatically.

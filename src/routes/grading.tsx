@@ -3,6 +3,7 @@ import type { Route } from "./+types/grading";
 import { Toggle } from "@/components/controls";
 import { CopyBadge, finishShort } from "@/components/finish";
 import { usd } from "@/lib/format";
+import { useAffiliateLinks } from "@/root";
 import { requireUser } from "@/lib/server/auth.server";
 import { getSettings, valuedCollection } from "@/lib/server/collection.server";
 import { gradedPrices, gradedSourceConfigured, refreshGraded } from "@/lib/server/graded.server";
@@ -70,6 +71,7 @@ const VERDICT: Record<GradingVerdict, { label: string; tone: string }> = {
 };
 
 export default function Grading({ loaderData: d }: Route.ComponentProps) {
+  const affiliateLinks = useAffiliateLinks();
   return (
     <>
       <div className="mb-4">
@@ -187,10 +189,11 @@ export default function Grading({ loaderData: d }: Route.ComponentProps) {
         </>
       )}
       <p className="mt-3 max-w-3xl text-[11px] leading-relaxed text-ink-500">
-        Graded prices are typical asking prices of current eBay listings, refreshed weekly
+        Graded prices are typical asking prices of current eBay listings, refreshed every few hours
         {d.stillLooking ? `; comps for your other cards are being looked up a few at a time as you visit` : ""}.
         Grading only makes sense for cards that are genuinely Mint: centring, corners, edges and surface all count.
-        This is a guide, not a guarantee.
+        This is a guide, not a guarantee or financial advice.
+        {affiliateLinks ? " eBay links are affiliate links: Shadowless may earn a commission." : ""}
       </p>
     </>
   );

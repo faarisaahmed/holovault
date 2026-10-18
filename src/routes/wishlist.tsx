@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/server/auth.server";
 import { addItem, getSettings, itemInput } from "@/lib/server/collection.server";
 import { finishPrices, finishesFor, getCard, productIds } from "@/lib/server/catalog.server";
 import { affiliateIdsFromEnv, tcgplayerLink } from "@/lib/affiliate";
+import { useAffiliateLinks } from "@/root";
 import { addWish, removeWish, setWishTarget, wishlist, type Wish } from "@/lib/server/wishlist.server";
 
 export const meta: Route.MetaFunction = () => [{ title: "Wishlist — Shadowless" }];
@@ -59,6 +60,7 @@ export async function action({ request }: Route.ActionArgs) {
 
 export default function Wishlist({ loaderData, actionData }: Route.ComponentProps) {
   const { wishes, defaultCondition, buyUrls } = loaderData;
+  const affiliateLinks = useAffiliateLinks();
   const total = wishes.reduce((s, w) => s + (w.owned ? 0 : (w.price ?? 0)), 0);
   const flagged = wishes.filter((w) => w.flag).length;
 
@@ -95,6 +97,9 @@ export default function Wishlist({ loaderData, actionData }: Route.ComponentProp
           ))}
         </ul>
       )}
+      {affiliateLinks && Object.keys(buyUrls).length ? (
+        <p className="mt-2 text-[10px] text-ink-500">Buy links are affiliate links: Shadowless may earn a commission, at no extra cost to you.</p>
+      ) : null}
       <p className="mt-3 max-w-3xl text-[11px] text-ink-500">
         Flags: <span className="text-good">under your target</span>, or <span className="text-amber-300">down 10%+</span> on the
         price when you added it or this week's high. Prices are TCGplayer market, refreshed daily.
